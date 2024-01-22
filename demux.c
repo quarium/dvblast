@@ -173,7 +173,7 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
     if ( !b_do_remap && !p_output->config.b_do_remap )
         return i_pid;
 
-    msg_Dbg(NULL, "REMAP: Found elementary stream type 0x%02x with original PID 0x%x (%u):", i_stream_type, i_pid, i_pid);
+    Dbg( "REMAP: Found elementary stream type 0x%02x with original PID 0x%x (%u):", i_stream_type, i_pid, i_pid);
 
     switch ( i_stream_type )
     {
@@ -219,7 +219,7 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
             }
             /* Audio found */
             if (SubStreamType==I_APID) {
-                msg_Dbg(NULL, "REMAP: PES Private Data stream identified as [Audio]");
+                Dbg( "REMAP: PES Private Data stream identified as [Audio]");
                 if ( b_do_remap )
                     i_newpid = pi_newpids[I_APID];
                 else
@@ -227,7 +227,7 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
             }
             /* Subtitle found */
             if (SubStreamType==I_SPUPID) {
-                msg_Dbg(NULL, "REMAP: PES Private Data stream identified as [Subtitle]");
+                Dbg( "REMAP: PES Private Data stream identified as [Subtitle]");
                 if ( b_do_remap )
                     i_newpid = pi_newpids[I_SPUPID];
                 else
@@ -247,7 +247,7 @@ static uint16_t map_es_pid(output_t * p_output, uint8_t *p_es, uint16_t i_pid)
     p_output->pi_freepids[i_newpid] = i_pid;  /* Mark as in use */
     p_output->pi_newpids[i_pid] = i_newpid;   /* Save the new pid */
 
-    msg_Dbg(NULL, "REMAP: => Elementary stream is remapped to PID 0x%x (%u)", i_newpid, i_newpid);
+    Dbg( "REMAP: => Elementary stream is remapped to PID 0x%x (%u)", i_newpid, i_newpid);
 
     return i_newpid;
 }
@@ -555,7 +555,7 @@ static void demux_Handle( block_t *p_ts )
 
     if ( !ts_validate( p_ts->p_ts ) )
     {
-        msg_Warn( NULL, "lost TS sync" );
+        Warn( "lost TS sync" );
         block_Delete( p_ts );
         i_nb_invalids++;
         return;
@@ -597,8 +597,8 @@ static void demux_Handle( block_t *p_ts )
         p_pid->info.i_cc_errors++;
         i_nb_discontinuities++;
 
-        msg_Warn( NULL, "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
-                i_pid, expected_cc, i_cc, pid_desc, i_sid );
+        Warn( "TS discontinuity on pid %4hu expected_cc %2u got %2u (%s, sid %d)",
+              i_pid, expected_cc, i_cc, pid_desc, i_sid );
     }
 
     if ( ts_get_transporterror( p_ts->p_ts ) )
@@ -608,8 +608,8 @@ static void demux_Handle( block_t *p_ts )
 
         p_pid->info.i_transport_errors++;
 
-        msg_Warn( NULL, "transport_error_indicator on pid %hu (%s, sid %u)",
-                   i_pid, pid_desc, i_sid );
+        Warn( "transport_error_indicator on pid %hu (%s, sid %u)",
+              i_pid, pid_desc, i_sid );
 
         i_nb_errors++;
         i_tuner_errors++;
@@ -621,8 +621,7 @@ static void demux_Handle( block_t *p_ts )
     if ( i_tuner_errors > MAX_ERRORS )
     {
         i_tuner_errors = 0;
-        msg_Warn( NULL,
-                 "too many transport errors, tuning again" );
+        Warn( "too many transport errors, tuning again" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<EVENT type=\"reset\" cause=\"transport\" />\n");
@@ -728,9 +727,8 @@ static void demux_Handle( block_t *p_ts )
                     for ( j = 0; j < i_nb_outputs; j++ )
                         pp_outputs[j]->i_nb_errors = 0;
 
-                    msg_Warn( NULL,
-                             "too many errors for stream %s, resetting",
-                             p_output->config.psz_displayname );
+                    Warn( "too many errors for stream %s, resetting",
+                          p_output->config.psz_displayname );
 
                     switch (i_print_type) {
                     case PRINT_XML:
@@ -958,14 +956,14 @@ out_change:
     if ( b_sid_change || b_pid_change || b_tsid_change || b_dvb_change ||
          b_network_change || b_service_name_change || b_remap_change )
     {
-        msg_Dbg( NULL, "change %s%s%s%s%s%s%s",
-                 b_sid_change ? "sid " : "",
-                 b_pid_change ? "pid " : "",
-                 b_tsid_change ? "tsid " : "",
-                 b_dvb_change ? "dvb " : "",
-                 b_network_change ? "network " : "",
-                 b_service_name_change ? "service_name " : "",
-                 b_remap_change ? "remap " : "" );
+        Dbg( "change %s%s%s%s%s%s%s",
+             b_sid_change ? "sid " : "",
+             b_pid_change ? "pid " : "",
+             b_tsid_change ? "tsid " : "",
+             b_dvb_change ? "dvb " : "",
+             b_network_change ? "network " : "",
+             b_service_name_change ? "service_name " : "",
+             b_remap_change ? "remap " : "" );
     }
 
     if ( b_sid_change || b_remap_change )
@@ -1230,7 +1228,7 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
     p_pmt = p_sid->p_current_pmt;
     i_pmt_pid = p_sid->i_pmt_pid;
     if ( p_pmt == NULL ) {
-        msg_Dbg(NULL, "no current PMT on sid %d\n", i_sid);
+        Dbg( "no current PMT on sid %d\n", i_sid);
         return;
     }
 
@@ -1294,7 +1292,7 @@ static void GetPIDS( uint16_t **ppi_wanted_pids, int *pi_nb_wanted_pids,
         (*ppi_wanted_pids)[(*pi_nb_wanted_pids)++] = i_pcr_pid;
         /* We only need the PCR packets of this stream (incomplete) */
         *pi_wanted_pcr_pid = i_pcr_pid;
-        msg_Dbg( NULL, "Requesting partial PCR PID %"PRIu16, i_pcr_pid );
+        Dbg( "Requesting partial PCR PID %"PRIu16, i_pcr_pid );
     }
 }
 
@@ -1619,8 +1617,8 @@ static void NewPAT( output_t *p_output )
     patn_init( p );
     if ( p_output->config.i_new_sid )
     {
-        msg_Dbg( NULL, "Mapping PAT SID %d to %d", p_output->config.i_sid,
-                 p_output->config.i_new_sid );
+        Dbg( "Mapping PAT SID %d to %d", p_output->config.i_sid,
+             p_output->config.i_new_sid );
         patn_set_program( p, p_output->config.i_new_sid );
     }
     else
@@ -1628,10 +1626,10 @@ static void NewPAT( output_t *p_output )
 
     if ( b_do_remap )
     {
-        msg_Dbg( NULL, "Mapping PMT PID %d to %d", patn_get_pid( p_program ), pi_newpids[I_PMTPID] );
+        Dbg( "Mapping PMT PID %d to %d", patn_get_pid( p_program ), pi_newpids[I_PMTPID] );
         patn_set_pid( p, pi_newpids[I_PMTPID]);
     } else if ( p_output->config.b_do_remap && p_output->config.pi_confpids[I_PMTPID] ) {
-        msg_Dbg( NULL, "Mapping PMT PID %d to %d", patn_get_pid( p_program ), p_output->config.pi_confpids[I_PMTPID] );
+        Dbg( "Mapping PMT PID %d to %d", patn_get_pid( p_program ), p_output->config.pi_confpids[I_PMTPID] );
         patn_set_pid( p, p_output->config.pi_confpids[I_PMTPID]);
     } else {
         patn_set_pid( p, patn_get_pid( p_program ) );
@@ -1702,8 +1700,8 @@ static void NewPMT( output_t *p_output )
     psi_set_length( p, PSI_MAX_SIZE );
     if ( p_output->config.i_new_sid )
     {
-        msg_Dbg( NULL, "Mapping PMT SID %d to %d", p_output->config.i_sid,
-                 p_output->config.i_new_sid );
+        Dbg( "Mapping PMT SID %d to %d", p_output->config.i_sid,
+             p_output->config.i_new_sid );
         pmt_set_program( p, p_output->config.i_new_sid );
     }
     else
@@ -1742,11 +1740,11 @@ static void NewPMT( output_t *p_output )
     /* Do the pcr pid after everything else as it may have been remapped */
     i_pcrpid = pmt_get_pcrpid( p_current_pmt );
     if ( p_output->pi_newpids[i_pcrpid] != UNUSED_PID ) {
-        msg_Dbg( NULL, "REMAP: The PCR PID was changed from 0x%x (%u) to 0x%x (%u)",
-                 i_pcrpid, i_pcrpid, p_output->pi_newpids[i_pcrpid], p_output->pi_newpids[i_pcrpid] );
+        Dbg( "REMAP: The PCR PID was changed from 0x%x (%u) to 0x%x (%u)",
+             i_pcrpid, i_pcrpid, p_output->pi_newpids[i_pcrpid], p_output->pi_newpids[i_pcrpid] );
         i_pcrpid = p_output->pi_newpids[i_pcrpid];
     } else {
-        msg_Dbg( NULL, "The PCR PID has kept its original value of 0x%x (%u)", i_pcrpid, i_pcrpid);
+        Dbg( "The PCR PID has kept its original value of 0x%x (%u)", i_pcrpid, i_pcrpid);
     }
     pmt_set_pcrpid( p, i_pcrpid );
     p_es = pmt_get_es( p, k );
@@ -1867,8 +1865,8 @@ static void NewSDT( output_t *p_output )
     sdtn_init( p_service );
     if ( p_output->config.i_new_sid )
     {
-        msg_Dbg( NULL, "Mapping SDT SID %d to %d", p_output->config.i_sid,
-                 p_output->config.i_new_sid );
+        Dbg( "Mapping SDT SID %d to %d", p_output->config.i_sid,
+             p_output->config.i_new_sid );
         sdtn_set_sid( p_service, p_output->config.i_new_sid );
     }
     else
@@ -2287,8 +2285,8 @@ char *demux_Iconv(void *_unused, const char *psz_encoding,
     if (iconv_handle == (iconv_t)-1)
         iconv_handle = iconv_open(psz_native_charset, psz_encoding);
     if (iconv_handle == (iconv_t)-1) {
-        msg_Warn(NULL, "couldn't open converter from %s to %s (%m)", psz_encoding,
-                psz_native_charset);
+        Warn( "couldn't open converter from %s to %s (%m)", psz_encoding,
+              psz_native_charset);
         return iconv_append_null(p_string, i_length);
     }
     psz_current_encoding = psz_encoding;
@@ -2297,14 +2295,14 @@ char *demux_Iconv(void *_unused, const char *psz_encoding,
     i_out_length = i_length * 6;
     p = psz_string = malloc(i_out_length);
     if (iconv(iconv_handle, &p_string, &i_length, &p, &i_out_length) == (size_t)-1) {
-        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
-                psz_native_charset);
+        Warn( "couldn't convert from %s to %s (%m)", psz_encoding,
+              psz_native_charset);
         free(psz_string);
         return iconv_append_null(p_string, i_length);
     }
     if (i_length)
-        msg_Warn(NULL, "partial conversion from %s to %s", psz_encoding,
-                psz_native_charset);
+        Warn( "partial conversion from %s to %s", psz_encoding,
+              psz_native_charset);
 
     *p = '\0';
     return psz_string;
@@ -2353,7 +2351,7 @@ static void HandlePAT( mtime_t i_dts )
 
     if ( !pat_table_validate( pp_next_pat_sections ) )
     {
-        msg_Warn( NULL, "invalid PAT received" );
+        Warn( "invalid PAT received" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_pat\"/>\n");
@@ -2400,9 +2398,8 @@ static void HandlePAT( mtime_t i_dts )
             if ( i_sid == 0 )
             {
                 if ( i_pid != NIT_PID )
-                    msg_Warn( NULL,
-                        "NIT is carried on PID %hu which isn't DVB compliant",
-                        i_pid );
+                    Warn( "NIT is carried on PID %hu which isn't DVB compliant",
+                          i_pid );
                 continue; /* NIT */
             }
 
@@ -2493,7 +2490,7 @@ static void HandlePATSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != PAT_PID || !pat_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid PAT section received on PID %hu", i_pid );
+        Warn( "invalid PAT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_pat_section\"/>\n");
@@ -2537,7 +2534,7 @@ static void HandleCAT( mtime_t i_dts )
 
     if ( !cat_table_validate( pp_next_cat_sections ) )
     {
-        msg_Warn( NULL, "invalid CAT received" );
+        Warn( "invalid CAT received" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_cat\"/>\n");
@@ -2637,7 +2634,7 @@ static void HandleCATSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != CAT_PID || !cat_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid CAT section received on PID %hu", i_pid );
+        Warn( "invalid CAT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_cat_section\"/>\n");
@@ -2725,7 +2722,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     if ( i_pid != p_sid->i_pmt_pid )
     {
-        msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
+        Warn( "invalid PMT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"ghost_pmt\" program=\"%hu\n pid=\"%hu\"/>\n",
@@ -2752,7 +2749,7 @@ static void HandlePMT( uint16_t i_pid, uint8_t *p_pmt, mtime_t i_dts )
 
     if ( !pmt_validate( p_pmt ) )
     {
-        msg_Warn( NULL, "invalid PMT section received on PID %hu", i_pid );
+        Warn( "invalid PMT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_pmt_section\" pid=\"%hu\"/>\n",
@@ -2857,7 +2854,7 @@ static void HandleNIT( mtime_t i_dts )
 
     if ( !nit_table_validate( pp_next_nit_sections ) )
     {
-        msg_Warn( NULL, "invalid NIT received" );
+        Warn( "invalid NIT received" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_nit\"/>\n");
@@ -2900,7 +2897,7 @@ static void HandleNITSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != NIT_PID || !nit_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid NIT section received on PID %hu", i_pid );
+        Warn( "invalid NIT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_nit_section\" pid=\"%hu\"/>\n",
@@ -2948,7 +2945,7 @@ static void HandleSDT( mtime_t i_dts )
 
     if ( !sdt_table_validate( pp_next_sdt_sections ) )
     {
-        msg_Warn( NULL, "invalid SDT received" );
+        Warn( "invalid SDT received" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_sdt\"/>\n");
@@ -3031,7 +3028,7 @@ static void HandleSDTSection( uint16_t i_pid, uint8_t *p_section,
 {
     if ( i_pid != SDT_PID || !sdt_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid SDT section received on PID %hu", i_pid );
+        Warn( "invalid SDT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_sdt_section\" pid=\"%hu\"/>\n",
@@ -3073,7 +3070,7 @@ static void HandleEIT( uint16_t i_pid, uint8_t *p_eit, mtime_t i_dts )
 
     if ( i_pid != EIT_PID || !eit_validate( p_eit ) )
     {
-        msg_Warn( NULL, "invalid EIT section received on PID %hu", i_pid );
+        Warn( "invalid EIT section received on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_eit_section\" pid=\"%hu\"/>\n",
@@ -3129,7 +3126,7 @@ static void HandleSection( uint16_t i_pid, uint8_t *p_section, mtime_t i_dts )
 
     if ( !psi_validate( p_section ) )
     {
-        msg_Warn( NULL, "invalid section on PID %hu", i_pid );
+        Warn( "invalid section on PID %hu", i_pid );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<ERROR type=\"invalid_section\" pid=\"%hu\"/>\n", i_pid);

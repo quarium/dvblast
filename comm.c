@@ -55,7 +55,7 @@ void comm_Open( void )
 
     if ( (i_comm_fd = socket( AF_UNIX, SOCK_DGRAM, 0 )) == -1 )
     {
-        msg_Err( NULL, "cannot create comm socket (%s)", strerror(errno) );
+        Err( "cannot create comm socket (%s)", strerror(errno) );
         return;
     }
 
@@ -69,7 +69,7 @@ void comm_Open( void )
     if ( bind( i_comm_fd, (struct sockaddr *)&sun_server,
                SUN_LEN(&sun_server) ) < 0 )
     {
-        msg_Err( NULL, "cannot bind comm socket (%s)", strerror(errno) );
+        Err( "cannot bind comm socket (%s)", strerror(errno) );
         close( i_comm_fd );
         i_comm_fd = -1;
         return;
@@ -98,19 +98,18 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
                        (struct sockaddr *)&sun_client, &sun_length );
     if ( i_size < COMM_HEADER_SIZE )
     {
-        msg_Err( NULL, "cannot read comm socket (%zd:%s)\n", i_size,
-                 strerror(errno) );
+        Err( "cannot read comm socket (%zd:%s)\n", i_size, strerror(errno) );
         return;
     }
     if ( sun_length == 0 || sun_length > sizeof(sun_client) )
     {
-        msg_Err( NULL, "anonymous packet from comm socket\n" );
+        Err( "anonymous packet from comm socket\n" );
         return;
     }
 
     if ( p_buffer[0] != COMM_HEADER_MAGIC )
     {
-        msg_Err( NULL, "wrong protocol version 0x%x", p_buffer[0] );
+        Err( "wrong protocol version 0x%x", p_buffer[0] );
         return;
     }
 
@@ -223,7 +222,7 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
                 i_answer_size = i_packed_section_size;
                 memcpy( p_answer + COMM_HEADER_SIZE, p_packed_section, i_packed_section_size );
             } else {
-                msg_Err( NULL, "section size is too big (%u)\n", i_packed_section_size );
+                Err( "section size is too big (%u)\n", i_packed_section_size );
                 i_answer = RET_NODATA;
             }
             free( p_packed_section );
@@ -240,7 +239,7 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     {
         if ( i_size < COMM_HEADER_SIZE + 2 )
         {
-            msg_Err( NULL, "command packet is too short (%zd)\n", i_size );
+            Err( "command packet is too short (%zd)\n", i_size );
             return;
         }
 
@@ -280,7 +279,7 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     {
         if ( i_size < COMM_HEADER_SIZE + 2 )
         {
-            msg_Err( NULL, "command packet is too short (%zd)\n", i_size );
+            Err( "command packet is too short (%zd)\n", i_size );
             return;
         }
 
@@ -296,7 +295,7 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     }
 
     default:
-        msg_Err( NULL, "wrong command %u", i_command );
+        Err( "wrong command %u", i_command );
         i_answer = RET_HUH;
         i_answer_size = 0;
         break;
@@ -310,8 +309,8 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     uint32_t *p_size = (uint32_t *)&p_answer[4];
     *p_size = i_answer_size + COMM_HEADER_SIZE;
 
-/*    msg_Dbg( NULL, "answering %d to %d with size %zd", i_answer, i_command,
-             i_answer_size ); */
+/*    Dbg( "answering %d to %d with size %zd", i_answer, i_command,
+           i_answer_size ); */
 
 #define min(a, b) (a < b ? a : b)
     ssize_t i_sended = 0;
@@ -322,7 +321,7 @@ static void comm_Read(struct ev_loop *loop, struct ev_io *w, int revents)
                      (struct sockaddr *)&sun_client, sun_length );
 
         if ( i_sent < 0 ) {
-            msg_Err( NULL, "cannot send comm socket (%s)", strerror(errno) );
+            Err( "cannot send comm socket (%s)", strerror(errno) );
             break;
         }
 

@@ -97,23 +97,21 @@ void dvb_OpenDvr( void )
     sprintf( psz_tmp, "/dev/dvb/adapter%d/dvr%d", i_adapter, i_fenum );
     if( (i_dvr = open(psz_tmp, O_RDONLY | O_NONBLOCK)) < 0 )
     {
-        msg_Info(NULL, "opening device %s failed (%s), fallback on sec device",
-                 psz_tmp, strerror(errno));
+        Info( "opening device %s failed (%s), fallback on sec device",
+              psz_tmp, strerror(errno));
 
         /* try to read from sec device */
         sprintf(psz_tmp, "/dev/dvb/adapter%d/sec%d", i_adapter, i_fenum);
         if ( (i_dvr = open(psz_tmp, O_RDONLY | O_NONBLOCK)) < 0 )
         {
-            msg_Err(NULL, "opening device %s failed (%s)", psz_tmp,
-                    strerror(errno));
+            Err( "opening device %s failed (%s)", psz_tmp, strerror(errno) );
             exit(1);
         }
     }
 
     if ( ioctl( i_dvr, DMX_SET_BUFFER_SIZE, i_dvr_buffer_size ) < 0 )
     {
-        msg_Warn( NULL, "couldn't set %s buffer size (%s)", psz_tmp,
-                 strerror(errno) );
+        Warn( "couldn't set %s buffer size (%s)", psz_tmp, strerror(errno) );
     }
 
     ev_io_init(&dvr_watcher, DVRRead, i_dvr, EV_READ);
@@ -127,15 +125,14 @@ void dvb_OpenSec( void )
 {
     char psz_tmp[128];
 
-    msg_Dbg( NULL, "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
+    Dbg( "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
 
     i_frontend = -1;
 
     sprintf( psz_tmp, "/dev/dvb/adapter%d/sec%d", i_adapter, i_secnum );
     if( (i_sec = open(psz_tmp, O_WRONLY)) < 0 )
     {
-        msg_Err(NULL, "opening device %s failed (%s)", psz_tmp,
-                strerror(errno));
+        Err( "opening device %s failed (%s)", psz_tmp, strerror(errno) );
         exit(1);
     }
 }
@@ -147,15 +144,14 @@ void dvb_Open( void )
 {
     char psz_tmp[128];
 
-    msg_Dbg( NULL, "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
+    Dbg( "compiled with DVB API version %d.%d", DVB_API_VERSION, DVB_API_VERSION_MINOR );
 
     if ( i_frequency )
     {
         sprintf( psz_tmp, "/dev/dvb/adapter%d/frontend%d", i_adapter, i_fenum );
         if( (i_frontend = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
         {
-            msg_Err( NULL, "opening device %s failed (%s)", psz_tmp,
-                     strerror(errno) );
+            Err( "opening device %s failed (%s)", psz_tmp, strerror(errno) );
             exit(1);
         }
 
@@ -212,8 +208,7 @@ static void DVRRead(struct ev_loop *loop, struct ev_io *w, int revents)
 
     if ( (i_len = readv(i_dvr, p_iov, MAX_READ_ONCE)) < 0 )
     {
-        msg_Err( NULL, "couldn't read from DVR device (%s)",
-                 strerror(errno) );
+        Err( "couldn't read from DVR device (%s)", strerror(errno) );
         i_len = 0;
     }
     i_len /= TS_SIZE;
@@ -236,7 +231,7 @@ static void DVRRead(struct ev_loop *loop, struct ev_io *w, int revents)
 
 static void DVRMuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    msg_Warn( NULL, "no DVR output, resetting" );
+    Warn( "no DVR output, resetting" );
     ev_timer_stop(loop, w);
 
     switch (i_print_type) {
@@ -271,8 +266,7 @@ int dvb_SetFilter( uint16_t i_pid )
     sprintf( psz_tmp, "/dev/dvb/adapter%d/demux%d", i_adapter, i_fenum );
     if( (i_fd = open(psz_tmp, O_RDWR)) < 0 )
     {
-        msg_Err( NULL, "DMXSetFilter: opening device failed (%s)",
-                 strerror(errno) );
+        Err( "DMXSetFilter: opening device failed (%s)", strerror(errno) );
         return -1;
     }
 
@@ -284,13 +278,12 @@ int dvb_SetFilter( uint16_t i_pid )
 
     if ( ioctl( i_fd, DMX_SET_PES_FILTER, &s_filter_params ) < 0 )
     {
-        msg_Err( NULL, "failed setting filter on %d (%s)", i_pid,
-                 strerror(errno) );
+        Err( "failed setting filter on %d (%s)", i_pid, strerror(errno) );
         close( i_fd );
         return -1;
     }
 
-    msg_Dbg( NULL, "setting filter on PID %d", i_pid );
+    Dbg( "setting filter on PID %d", i_pid );
 
     return i_fd;
 }
@@ -301,9 +294,9 @@ int dvb_SetFilter( uint16_t i_pid )
 void dvb_UnsetFilter( int i_fd, uint16_t i_pid )
 {
     if ( ioctl( i_fd, DMX_STOP ) < 0 )
-        msg_Err( NULL, "DMX_STOP failed (%s)", strerror(errno) );
+        Err( "DMX_STOP failed (%s)", strerror(errno) );
     else
-        msg_Dbg( NULL, "unsetting filter on PID %d", i_pid );
+        Dbg( "unsetting filter on PID %d", i_pid );
 
     close( i_fd );
 }
@@ -408,8 +401,8 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
             if( errno == EWOULDBLOCK )
                 return; /* no more events */
 
-            msg_Err( NULL, "reading frontend event failed (%d) %s",
-                     i_ret, strerror(errno) );
+            Err( "reading frontend event failed (%d) %s",
+                 i_ret, strerror(errno) );
             return;
         }
 
@@ -425,29 +418,29 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
             if ( i_status & (x) )
 
             IF_UP( FE_HAS_SIGNAL )
-                msg_Dbg( NULL, "frontend has acquired signal" );
+                Dbg( "frontend has acquired signal" );
             else
-                msg_Dbg( NULL, "frontend has lost signal" );
+                Dbg( "frontend has lost signal" );
 
             IF_UP( FE_HAS_CARRIER )
-                msg_Dbg( NULL, "frontend has acquired carrier" );
+                Dbg( "frontend has acquired carrier" );
             else
-                msg_Dbg( NULL, "frontend has lost carrier" );
+                Dbg( "frontend has lost carrier" );
 
             IF_UP( FE_HAS_VITERBI )
-                msg_Dbg( NULL, "frontend has acquired stable FEC" );
+                Dbg( "frontend has acquired stable FEC" );
             else
-                msg_Dbg( NULL, "frontend has lost FEC" );
+                Dbg( "frontend has lost FEC" );
 
             IF_UP( FE_HAS_SYNC )
-                msg_Dbg( NULL, "frontend has acquired sync" );
+                Dbg( "frontend has acquired sync" );
             else
-                msg_Dbg( NULL, "frontend has lost sync" );
+                Dbg( "frontend has lost sync" );
 
             IF_UP( FE_HAS_LOCK )
             {
                 int32_t i_value = 0;
-                msg_Info( NULL, "frontend has acquired lock" );
+                Info( "frontend has acquired lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
                     fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\" />\n");
@@ -464,11 +457,11 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
 
                 /* Read some statistics */
                 if( ioctl( i_frontend, FE_READ_BER, &i_value ) >= 0 )
-                    msg_Dbg( NULL, "- Bit error rate: %d", i_value );
+                    Dbg( "- Bit error rate: %d", i_value );
                 if( ioctl( i_frontend, FE_READ_SIGNAL_STRENGTH, &i_value ) >= 0 )
-                    msg_Dbg( NULL, "- Signal strength: %d", i_value );
+                    Dbg( "- Signal strength: %d", i_value );
                 if( ioctl( i_frontend, FE_READ_SNR, &i_value ) >= 0 )
-                    msg_Dbg( NULL, "- SNR: %d", i_value );
+                    Dbg( "- SNR: %d", i_value );
 
                 if (i_print_period)
                 {
@@ -480,7 +473,7 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
             }
             else
             {
-                msg_Dbg( NULL, "frontend has lost lock" );
+                Dbg( "frontend has lost lock" );
                 switch (i_print_type) {
                 case PRINT_XML:
                     fprintf(print_fh, "<STATUS type=\"lock\" status=\"0\"/>\n");
@@ -505,7 +498,7 @@ static void FrontendRead(struct ev_loop *loop, struct ev_io *w, int revents)
             IF_UP( FE_REINIT )
             {
                 /* The frontend was reinited. */
-                msg_Warn( NULL, "reiniting frontend");
+                Warn( "reiniting frontend");
                 if ( i_frequency )
                     FrontendSet(true);
             }
@@ -518,12 +511,12 @@ static void FrontendLockCb(struct ev_loop *loop, struct ev_timer *w, int revents
 {
     if ( i_quit_timeout_duration )
     {
-        msg_Err( NULL, "no lock" );
+        Err( "no lock" );
         ev_break(loop, EVBREAK_ALL);
         return;
     }
 
-    msg_Warn( NULL, "no lock, tuning again" );
+    Warn( "no lock, tuning again" );
     ev_timer_stop(loop, w);
 
     switch (i_print_type) {
@@ -561,41 +554,38 @@ static int FrontendDoDiseqc(void)
         /* Automatic mode. */
         if ( i_frequency >= 950000 && i_frequency <= 2150000 )
         {
-            msg_Dbg( NULL, "frequency %d is in IF-band", i_frequency );
+            Dbg( "frequency %d is in IF-band", i_frequency );
             bis_frequency = i_frequency;
         }
         else if ( i_frequency >= 2500000 && i_frequency <= 2700000 )
         {
-            msg_Dbg( NULL, "frequency %d is in S-band", i_frequency );
+            Dbg( "frequency %d is in S-band", i_frequency );
             bis_frequency = 3650000 - i_frequency;
         }
         else if ( i_frequency >= 3400000 && i_frequency <= 4200000 )
         {
-            msg_Dbg( NULL, "frequency %d is in C-band (lower)", i_frequency );
+            Dbg( "frequency %d is in C-band (lower)", i_frequency );
             bis_frequency = 5150000 - i_frequency;
         }
         else if ( i_frequency >= 4500000 && i_frequency <= 4800000 )
         {
-            msg_Dbg( NULL, "frequency %d is in C-band (higher)", i_frequency );
+            Dbg( "frequency %d is in C-band (higher)", i_frequency );
             bis_frequency = 5950000 - i_frequency;
         }
         else if ( i_frequency >= 10700000 && i_frequency < 11700000 )
         {
-            msg_Dbg( NULL, "frequency %d is in Ku-band (lower)",
-                     i_frequency );
+            Dbg( "frequency %d is in Ku-band (lower)", i_frequency );
             bis_frequency = i_frequency - 9750000;
         }
         else if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
         {
-            msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
-                     i_frequency );
+            Dbg( "frequency %d is in Ku-band (higher)", i_frequency );
             bis_frequency = i_frequency - 10600000;
             fe_tone = SEC_TONE_ON;
         }
         else
         {
-            msg_Err( NULL, "frequency %d is out of any known band",
-                     i_frequency );
+            Err( "frequency %d is out of any known band", i_frequency );
             exit(1);
         }
     }
@@ -603,36 +593,34 @@ static int FrontendDoDiseqc(void)
     {
          if ( i_frequency >= 11700000 && i_frequency <= 13250000 )
         {
-            msg_Dbg( NULL, "frequency %d is in Ku-band (higher)",
-                     i_frequency );
+            Dbg( "frequency %d is in Ku-band (higher)", i_frequency );
             bis_frequency = i_frequency - 11300000;
             fe_tone = SEC_TONE_ON;
         }
         else
         {
-            msg_Err( NULL, "frequency %d is out of any known band",
-                     i_frequency );
+            Err( "frequency %d is out of any known band", i_frequency );
             exit(1);
         }
     }
     else
     {
-        msg_Err( NULL, "lnb-type '%s' is not known. Valid type: universal old-sky",
-                 psz_lnb_type );
+        Err( "lnb-type '%s' is not known. Valid type: universal old-sky",
+             psz_lnb_type );
         exit(1);
     }
 
     /* Switch off continuous tone. */
     if ( ioctl( i_frontend, FE_SET_TONE, SEC_TONE_OFF ) < 0 )
     {
-        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
+        Err( "FE_SET_TONE failed (%s)", strerror(errno) );
         exit(1);
     }
 
     /* Configure LNB voltage. */
     if ( ioctl( i_frontend, FE_SET_VOLTAGE, fe_voltage ) < 0 )
     {
-        msg_Err( NULL, "FE_SET_VOLTAGE failed (%s)", strerror(errno) );
+        Err( "FE_SET_VOLTAGE failed (%s)", strerror(errno) );
         exit(1);
     }
 
@@ -665,16 +653,14 @@ static int FrontendDoDiseqc(void)
                              | (i_uncommitted - 1);
            if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
            {
-               msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
-                        strerror(errno) );
+               Err( "ioctl FE_SEND_MASTER_CMD failed (%s)", strerror(errno) );
                exit(1);
            }
            /* Repeat uncommitted command */
            uncmd.msg[0] = 0xe1; /* framing: master, no reply, repeated TX */
            if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &uncmd ) < 0 )
            {
-               msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
-                        strerror(errno) );
+               Err( "ioctl FE_SEND_MASTER_CMD failed (%s)", strerror(errno) );
                exit(1);
            }
            /* Pause 125 ms between uncommitted & committed diseqc commands. */
@@ -683,8 +669,7 @@ static int FrontendDoDiseqc(void)
 
         if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &cmd ) < 0 )
         {
-            msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
-                     strerror(errno) );
+            Err( "ioctl FE_SEND_MASTER_CMD failed (%s)", strerror(errno) );
             exit(1);
         }
         msleep(100000); /* Should be 15 ms. */
@@ -693,8 +678,7 @@ static int FrontendDoDiseqc(void)
         cmd.msg[0] = 0xe1; /* framing: master, no reply, repeated TX */
         if( ioctl( i_frontend, FE_DISEQC_SEND_MASTER_CMD, &cmd ) < 0 )
         {
-            msg_Err( NULL, "ioctl FE_SEND_MASTER_CMD failed (%s)",
-                     strerror(errno) );
+            Err( "ioctl FE_SEND_MASTER_CMD failed (%s)", strerror(errno) );
             exit(1);
         }
         msleep(100000); /* Again, should be 15 ms */
@@ -705,7 +689,7 @@ static int FrontendDoDiseqc(void)
         if( ioctl( i_frontend, FE_DISEQC_SEND_BURST,
                    i_satnum == 0xB ? SEC_MINI_B : SEC_MINI_A ) < 0 )
         {
-            msg_Err( NULL, "ioctl FE_SEND_BURST failed (%s)", strerror(errno) );
+            Err( "ioctl FE_SEND_BURST failed (%s)", strerror(errno) );
             exit(1);
         }
         msleep(100000); /* ... */
@@ -713,14 +697,14 @@ static int FrontendDoDiseqc(void)
 
     if ( ioctl( i_frontend, FE_SET_TONE, fe_tone ) < 0 )
     {
-        msg_Err( NULL, "FE_SET_TONE failed (%s)", strerror(errno) );
+        Err( "FE_SET_TONE failed (%s)", strerror(errno) );
         exit(1);
     }
 
     msleep(100000); /* ... */
 
-    msg_Dbg( NULL, "configuring LNB to v=%d p=%d satnum=%x uncommitted=%x lnb-type=%s bis_frequency=%d",
-             i_voltage, b_tone, i_satnum, i_uncommitted, psz_lnb_type, bis_frequency );
+    Dbg( "configuring LNB to v=%d p=%d satnum=%x uncommitted=%x lnb-type=%s bis_frequency=%d",
+         i_voltage, b_tone, i_satnum, i_uncommitted, psz_lnb_type, bis_frequency );
     return bis_frequency;
 }
 
@@ -740,7 +724,7 @@ static fe_spectral_inversion_t GetInversion(void)
         case 0:  return INVERSION_OFF;
         case 1:  return INVERSION_ON;
         default:
-            msg_Warn( NULL, "invalid inversion %d", i_inversion );
+            Warn( "invalid inversion %d", i_inversion );
         case -1: return INVERSION_AUTO;
     }
 }
@@ -769,7 +753,7 @@ static fe_code_rate_t GetFEC(fe_caps_t fe_caps, int i_fec_value)
         return FEC_9_10;
 
 #undef GET_FEC_INNER
-    msg_Warn(NULL, "invalid FEC %d", i_fec_value );
+    Warn( "invalid FEC %d", i_fec_value );
     return FEC_AUTO;
 }
 
@@ -797,7 +781,7 @@ static fe_modulation_t GetModulation(void)
     GET_MODULATION(DQPSK);
 
 #undef GET_MODULATION
-    msg_Err( NULL, "invalid modulation %s", psz_modulation );
+    Err( "invalid modulation %s", psz_modulation );
     exit(1);
 }
 
@@ -808,7 +792,7 @@ static fe_pilot_t GetPilot(void)
         case 0:  return PILOT_OFF;
         case 1:  return PILOT_ON;
         default:
-            msg_Warn( NULL, "invalid pilot %d", i_pilot );
+            Warn( "invalid pilot %d", i_pilot );
         case -1: return PILOT_AUTO;
     }
 }
@@ -822,7 +806,7 @@ static fe_rolloff_t GetRollOff(void)
         case 20: return ROLLOFF_20;
         case 25: return ROLLOFF_25;
         default:
-            msg_Warn( NULL, "invalid rolloff %d", i_rolloff );
+            Warn( "invalid rolloff %d", i_rolloff );
         case 35: return ROLLOFF_35;
     }
 }
@@ -836,7 +820,7 @@ static fe_guard_interval_t GetGuard(void)
         case  8: return GUARD_INTERVAL_1_8;
         case  4: return GUARD_INTERVAL_1_4;
         default:
-            msg_Warn( NULL, "invalid guard interval %d", i_guard );
+            Warn( "invalid guard interval %d", i_guard );
         case -1:
         case  0: return GUARD_INTERVAL_AUTO;
     }
@@ -852,7 +836,7 @@ static fe_transmit_mode_t GetTransmission(void)
         case 4: return TRANSMISSION_MODE_4K;
 #endif
         default:
-            msg_Warn( NULL, "invalid tranmission mode %d", i_transmission );
+            Warn( "invalid tranmission mode %d", i_transmission );
         case -1:
         case 0: return TRANSMISSION_MODE_AUTO;
     }
@@ -867,7 +851,7 @@ static fe_hierarchy_t GetHierarchy(void)
         case 2: return HIERARCHY_2;
         case 4: return HIERARCHY_4;
         default:
-            msg_Warn( NULL, "invalid intramission mode %d", i_transmission );
+            Warn( "invalid intramission mode %d", i_transmission );
         case -1: return HIERARCHY_AUTO;
     }
 }
@@ -878,18 +862,18 @@ static fe_hierarchy_t GetHierarchy(void)
 static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
                           fe_delivery_system_t *p_systems, int i_systems )
 {
-    msg_Dbg( NULL, "using DVB API version %d.%d", version / 256, version % 256 );
-    msg_Dbg( NULL, "Frontend \"%s\" supports:", info->name );
-    msg_Dbg( NULL, " frequency min: %d, max: %d, stepsize: %d, tolerance: %d",
-             info->frequency_min, info->frequency_max,
-             info->frequency_stepsize, info->frequency_tolerance );
-    msg_Dbg( NULL, " symbolrate min: %d, max: %d, tolerance: %d",
-             info->symbol_rate_min, info->symbol_rate_max, info->symbol_rate_tolerance);
-    msg_Dbg( NULL, " capabilities:" );
+    Dbg( "using DVB API version %d.%d", version / 256, version % 256 );
+    Dbg( "Frontend \"%s\" supports:", info->name );
+    Dbg( " frequency min: %d, max: %d, stepsize: %d, tolerance: %d",
+         info->frequency_min, info->frequency_max,
+         info->frequency_stepsize, info->frequency_tolerance );
+    Dbg( " symbolrate min: %d, max: %d, tolerance: %d",
+         info->symbol_rate_min, info->symbol_rate_max, info->symbol_rate_tolerance);
+    Dbg( " capabilities:" );
 
 #define FRONTEND_INFO(caps,val,msg)                                         \
     if ( caps & val )                                                       \
-        msg_Dbg( NULL, "  %s", msg );
+        Dbg( "  %s", msg );
 
     FRONTEND_INFO( info->caps, FE_IS_STUPID, "FE_IS_STUPID" )
     FRONTEND_INFO( info->caps, FE_CAN_INVERSION_AUTO, "INVERSION_AUTO" )
@@ -926,14 +910,14 @@ static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
     FRONTEND_INFO( info->caps, FE_CAN_MUTE_TS, "FE_CAN_MUTE_TS" )
 #undef FRONTEND_INFO
 
-    msg_Dbg( NULL, " delivery systems:" );
+    Dbg( " delivery systems:" );
     int i;
     for ( i = 0; i < i_systems; i++ )
     {
         switch ( p_systems[i] )
         {
 #define DELSYS_INFO(delsys, msg)                                            \
-        case delsys: msg_Dbg( NULL, "  %s", msg); break;
+        case delsys: Dbg( "  %s", msg); break;
         DELSYS_INFO( SYS_ATSC, "ATSC" )
         DELSYS_INFO( SYS_ATSCMH, "ATSCMH" )
         DELSYS_INFO( SYS_CMMB, "CMBB" )
@@ -961,7 +945,7 @@ static void FrontendInfo( struct dvb_frontend_info *info, uint32_t version,
 #else
         DELSYS_INFO( SYS_DMBTH, "DMBTH" )
 #endif
-        default: msg_Dbg( NULL, "  Unknown delivery system %u", p_systems[i]);
+        default: Dbg( "  Unknown delivery system %u", p_systems[i]);
             break;
         }
     }
@@ -1183,7 +1167,7 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
             return SYS_ATSC;
         if ( !strcasecmp( psz_delsys, "ISDBT" ) )
             return SYS_ISDBT;
-        msg_Err( NULL, "unknown delivery system %s", psz_delsys );
+        Err( "unknown delivery system %s", psz_delsys );
         exit(1);
     }
 
@@ -1225,7 +1209,7 @@ FrontendGuessSystem( fe_delivery_system_t *p_systems, int i_systems )
         }
     }
 
-    msg_Warn( NULL, "couldn't guess delivery system, use --delsys" );
+    Warn( "couldn't guess delivery system, use --delsys" );
     return p_systems[0];
 }
 
@@ -1238,7 +1222,7 @@ static void FrontendSet( bool b_init )
 
     if ( ioctl( i_frontend, FE_GET_INFO, &info ) < 0 )
     {
-        msg_Err( NULL, "FE_GET_INFO failed (%s)", strerror(errno) );
+        Err( "FE_GET_INFO failed (%s)", strerror(errno) );
         exit(1);
     }
 
@@ -1276,7 +1260,7 @@ static void FrontendSet( bool b_init )
                 p_systems[i_systems++] = SYS_DVBC_ANNEX_B;
             break;
         default:
-            msg_Err( NULL, "unknown frontend type %d", info.type );
+            Err( "unknown frontend type %d", info.type );
             exit(1);
         }
 #if DVBAPI_VERSION >= 505
@@ -1286,13 +1270,13 @@ static void FrontendSet( bool b_init )
         version = info_cmdargs[0].u.data;
         if ( ioctl( i_frontend, FE_GET_PROPERTY, &enum_cmdseq ) < 0 )
         {
-            msg_Err( NULL, "unable to query frontend" );
+            Err( "unable to query frontend" );
             exit(1);
         }
         i_systems = enum_cmdargs[0].u.buffer.len;
         if ( i_systems < 1 )
         {
-            msg_Err( NULL, "no available delivery system" );
+            Err( "no available delivery system" );
             exit(1);
         }
 
@@ -1308,7 +1292,7 @@ static void FrontendSet( bool b_init )
     /* Clear frontend commands */
     if ( ioctl( i_frontend, FE_SET_PROPERTY, &cmdclear ) < 0 )
     {
-        msg_Err( NULL, "Unable to clear frontend" );
+        Err( "Unable to clear frontend" );
         exit(1);
     }
 
@@ -1329,11 +1313,11 @@ static void FrontendSet( bool b_init )
         p->props[TRANSMISSION].u.data = GetTransmission();
         p->props[HIERARCHY].u.data = GetHierarchy();
 
-        msg_Dbg( NULL, "tuning DVB-T frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d",
-                 i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
-                 i_hierarchy,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation,
-                 i_guard, i_transmission );
+        Dbg( "tuning DVB-T frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d",
+             i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
+             i_hierarchy,
+             psz_modulation == NULL ? "qam_auto" : psz_modulation,
+             i_guard, i_transmission );
         break;
     case SYS_DVBT2:
         p = &dvbt2_cmdseq;
@@ -1350,11 +1334,11 @@ static void FrontendSet( bool b_init )
         p->props[HIERARCHY].u.data = GetHierarchy();
         p->props[PLP_ID].u.data = dvb_plp_id;
 
-        msg_Dbg( NULL, "tuning DVB-T2 frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d PLP_ID=%d ",
-                 i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
-                 i_hierarchy,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation,
-                 i_guard, i_transmission, p->props[PLP_ID].u.data );
+        Dbg( "tuning DVB-T2 frontend to f=%d bandwidth=%d inversion=%d fec_hp=%d fec_lp=%d hierarchy=%d modulation=%s guard=%d transmission=%d PLP_ID=%d ",
+             i_frequency, i_bandwidth, i_inversion, i_fec, i_fec_lp,
+             i_hierarchy,
+             psz_modulation == NULL ? "qam_auto" : psz_modulation,
+             i_guard, i_transmission, p->props[PLP_ID].u.data );
         break;
 #if DVBAPI_VERSION >= 505
     case SYS_DVBC_ANNEX_A:
@@ -1368,9 +1352,9 @@ static void FrontendSet( bool b_init )
             p->props[MODULATION].u.data = GetModulation();
         p->props[SYMBOL_RATE].u.data = i_srate;
 
-        msg_Dbg( NULL, "tuning DVB-C frontend to f=%d srate=%d inversion=%d modulation=%s",
-                 i_frequency, i_srate, i_inversion,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        Dbg( "tuning DVB-C frontend to f=%d srate=%d inversion=%d modulation=%s",
+             i_frequency, i_srate, i_inversion,
+             psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
     case SYS_DVBC_ANNEX_B:
@@ -1381,9 +1365,9 @@ static void FrontendSet( bool b_init )
         if ( psz_modulation != NULL )
             p->props[MODULATION].u.data = GetModulation();
 
-        msg_Dbg( NULL, "tuning ATSC cable frontend to f=%d inversion=%d modulation=%s",
-                 i_frequency, i_inversion,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        Dbg( "tuning ATSC cable frontend to f=%d inversion=%d modulation=%s",
+             i_frequency, i_inversion,
+             psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
 
     case SYS_DVBS:
@@ -1404,10 +1388,10 @@ static void FrontendSet( bool b_init )
         p->props[FEC_INNER].u.data = GetFECInner(info.caps);
         p->props[FREQUENCY].u.data = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d /pls-mode: %s (%d) pls-code: %d is-id: %d /",
-                 i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
-                 psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot,
-                 i_mis, psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
+        Dbg( "tuning DVB-S frontend to f=%d srate=%d inversion=%d fec=%d rolloff=%d modulation=%s pilot=%d mis=%d /pls-mode: %s (%d) pls-code: %d is-id: %d /",
+             i_frequency, i_srate, i_inversion, i_fec, i_rolloff,
+             psz_modulation == NULL ? "legacy" : psz_modulation, i_pilot,
+             i_mis, psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
         break;
 
     case SYS_ATSC:
@@ -1417,9 +1401,9 @@ static void FrontendSet( bool b_init )
         if ( psz_modulation != NULL )
             p->props[MODULATION].u.data = GetModulation();
 
-        msg_Dbg( NULL, "tuning ATSC frontend to f=%d inversion=%d modulation=%s",
-                 i_frequency, i_inversion,
-                 psz_modulation == NULL ? "qam_auto" : psz_modulation );
+        Dbg( "tuning ATSC frontend to f=%d inversion=%d modulation=%s",
+             i_frequency, i_inversion,
+             psz_modulation == NULL ? "qam_auto" : psz_modulation );
         break;
      case SYS_ISDBT:
         p = &isdbt_cmdseq;
@@ -1440,12 +1424,12 @@ static void FrontendSet( bool b_init )
         p->props[ISDBT_LAYERC_SEGMENT_COUNT].u.data = 0;
         p->props[ISDBT_LAYERC_TIME_INTERLEAVING].u.data = 0;
 
-        msg_Dbg( NULL, "tuning ISDB-T frontend to f=%d bandwidth=%d ",
-                 i_frequency, i_bandwidth);
+        Dbg( "tuning ISDB-T frontend to f=%d bandwidth=%d ",
+             i_frequency, i_bandwidth);
         break;
 
     default:
-        msg_Err( NULL, "unknown frontend type %d", info.type );
+        Err( "unknown frontend type %d", info.type );
         exit(1);
     }
 
@@ -1461,7 +1445,7 @@ static void FrontendSet( bool b_init )
     /* Now send it all to the frontend device */
     if ( ioctl( i_frontend, FE_SET_PROPERTY, p ) < 0 )
     {
-        msg_Err( NULL, "setting frontend failed (%s)", strerror(errno) );
+        Err( "setting frontend failed (%s)", strerror(errno) );
         exit(1);
     }
 
@@ -1483,7 +1467,7 @@ static void FrontendSet( bool b_init )
 
     if ( ioctl( i_frontend, FE_GET_INFO, &info ) < 0 )
     {
-        msg_Err( NULL, "FE_GET_INFO failed (%s)", strerror(errno) );
+        Err( "FE_GET_INFO failed (%s)", strerror(errno) );
         exit(1);
     }
 
@@ -1508,8 +1492,8 @@ static void FrontendSet( bool b_init )
         fep.u.ofdm.guard_interval = GUARD_INTERVAL_AUTO;
         fep.u.ofdm.hierarchy_information = HIERARCHY_AUTO;
 
-        msg_Dbg( NULL, "tuning OFDM frontend to f=%d, bandwidth=%d",
-                 i_frequency, i_bandwidth );
+        Dbg( "tuning OFDM frontend to f=%d, bandwidth=%d",
+             i_frequency, i_bandwidth );
         break;
 
     case FE_QAM:
@@ -1519,8 +1503,7 @@ static void FrontendSet( bool b_init )
         fep.u.qam.fec_inner = FEC_AUTO;
         fep.u.qam.modulation = QAM_AUTO;
 
-        msg_Dbg( NULL, "tuning QAM frontend to f=%d, srate=%d",
-                 i_frequency, i_srate );
+        Dbg( "tuning QAM frontend to f=%d, srate=%d", i_frequency, i_srate );
         break;
 
     case FE_QPSK:
@@ -1529,8 +1512,7 @@ static void FrontendSet( bool b_init )
         fep.u.qpsk.fec_inner = FEC_AUTO;
         fep.frequency = FrontendDoDiseqc();
 
-        msg_Dbg( NULL, "tuning QPSK frontend to f=%d, srate=%d",
-                 i_frequency, i_srate );
+        Dbg( "tuning QPSK frontend to f=%d, srate=%d", i_frequency, i_srate );
         break;
 
 #if DVBAPI_VERSION >= 301
@@ -1539,12 +1521,12 @@ static void FrontendSet( bool b_init )
 
         fep.u.vsb.modulation = QAM_AUTO;
 
-        msg_Dbg( NULL, "tuning ATSC frontend to f=%d", i_frequency );
+        Dbg( "tuning ATSC frontend to f=%d", i_frequency );
         break;
 #endif
 
     default:
-        msg_Err( NULL, "unknown frontend type %d", info.type );
+        Err( "unknown frontend type %d", info.type );
         exit(1);
     }
 
@@ -1560,7 +1542,7 @@ static void FrontendSet( bool b_init )
     /* Now send it all to the frontend device */
     if ( ioctl( i_frontend, FE_SET_FRONTEND, &fep ) < 0 )
     {
-        msg_Err( NULL, "setting frontend failed (%s)", strerror(errno) );
+        Err( "setting frontend failed (%s)", strerror(errno) );
         exit(1);
     }
 
@@ -1581,28 +1563,27 @@ uint8_t dvb_FrontendStatus( uint8_t *p_answer, ssize_t *pi_size )
 
     if ( ioctl( i_frontend, FE_GET_INFO, &p_ret->info ) < 0 )
     {
-        msg_Err( NULL, "ioctl FE_GET_INFO failed (%s)", strerror(errno) );
+        Err( "ioctl FE_GET_INFO failed (%s)", strerror(errno) );
         return RET_ERR;
     }
 
     if ( ioctl( i_frontend, FE_READ_STATUS, &p_ret->i_status ) < 0 )
     {
-        msg_Err( NULL, "ioctl FE_READ_STATUS failed (%s)", strerror(errno) );
+        Err( "ioctl FE_READ_STATUS failed (%s)", strerror(errno) );
         return RET_ERR;
     }
 
     if ( p_ret->i_status & FE_HAS_LOCK )
     {
         if ( ioctl( i_frontend, FE_READ_BER, &p_ret->i_ber ) < 0 )
-            msg_Err( NULL, "ioctl FE_READ_BER failed (%s)", strerror(errno) );
+            Err( "ioctl FE_READ_BER failed (%s)", strerror(errno) );
 
         if ( ioctl( i_frontend, FE_READ_SIGNAL_STRENGTH, &p_ret->i_strength )
               < 0 )
-            msg_Err( NULL, "ioctl FE_READ_SIGNAL_STRENGTH failed (%s)",
-                     strerror(errno) );
+            Err( "ioctl FE_READ_SIGNAL_STRENGTH failed (%s)", strerror(errno) );
 
         if ( ioctl( i_frontend, FE_READ_SNR, &p_ret->i_snr ) < 0 )
-            msg_Err( NULL, "ioctl FE_READ_SNR failed (%s)", strerror(errno) );
+            Err( "ioctl FE_READ_SNR failed (%s)", strerror(errno) );
     }
 
     *pi_size = sizeof(struct ret_frontend_status);

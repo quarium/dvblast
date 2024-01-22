@@ -1911,7 +1911,7 @@ static void ResetSlot( int i_slot )
     }
 
     if ( ioctl( i_ca_handle, CA_RESET, 1 << i_slot ) != 0 )
-        msg_Err( NULL, "en50221_Poll: couldn't reset slot %d", i_slot );
+        Err( "en50221_Poll: couldn't reset slot %d", i_slot );
     p_slot->b_active = false;
     ev_timer_init(&p_slot->init_watcher, ResetSlotCb,
                   CAM_INIT_TIMEOUT / 1000000., 0);
@@ -1957,8 +1957,7 @@ static void ResetSlotCb(struct ev_loop *loop, struct ev_timer *w, int revents)
     if ( p_slot->b_active || !p_slot->b_expect_answer )
         return;
 
-    msg_Warn( NULL, "no answer from CAM, resetting slot %d",
-              i_slot );
+    Warn( "no answer from CAM, resetting slot %d", i_slot );
     switch (i_print_type) {
     case PRINT_XML:
         fprintf(print_fh,
@@ -1992,47 +1991,45 @@ void en50221_Init( void )
     sprintf( psz_tmp, "/dev/dvb/adapter%d/ca%d", i_adapter, i_canum );
     if( (i_ca_handle = open(psz_tmp, O_RDWR | O_NONBLOCK)) < 0 )
     {
-        msg_Warn( NULL, "failed opening CAM device %s (%s)",
-                  psz_tmp, strerror(errno) );
+        Warn( "failed opening CAM device %s (%s)", psz_tmp, strerror(errno) );
         i_ca_handle = 0;
         return;
     }
 
     if ( ioctl( i_ca_handle, CA_GET_CAP, &caps ) != 0 )
     {
-        msg_Err( NULL, "failed getting CAM capabilities (%s)",
-                 strerror(errno) );
+        Err( "failed getting CAM capabilities (%s)", strerror(errno) );
         close( i_ca_handle );
         i_ca_handle = 0;
         return;
     }
 
     /* Output CA capabilities */
-    msg_Dbg( NULL, "CA interface with %d %s", caps.slot_num,
-        caps.slot_num == 1 ? "slot" : "slots" );
+    Dbg( "CA interface with %d %s", caps.slot_num,
+         caps.slot_num == 1 ? "slot" : "slots" );
     if ( caps.slot_type & CA_CI )
-        msg_Dbg( NULL, "  CI high level interface type" );
+        Dbg( "  CI high level interface type" );
     if ( caps.slot_type & CA_CI_LINK )
-        msg_Dbg( NULL, "  CI link layer level interface type" );
+        Dbg( "  CI link layer level interface type" );
     if ( caps.slot_type & CA_CI_PHYS )
-        msg_Dbg( NULL, "  CI physical layer level interface type (not supported) " );
+        Dbg( "  CI physical layer level interface type (not supported) " );
     if ( caps.slot_type & CA_DESCR )
-        msg_Dbg( NULL, "  built-in descrambler detected" );
+        Dbg( "  built-in descrambler detected" );
     if ( caps.slot_type & CA_SC )
-        msg_Dbg( NULL, "  simple smart card interface" );
+        Dbg( "  simple smart card interface" );
 
-    msg_Dbg( NULL, "  %d available %s", caps.descr_num,
+    Dbg( "  %d available %s", caps.descr_num,
         caps.descr_num == 1 ? "descrambler (key)" : "descramblers (keys)" );
     if ( caps.descr_type & CA_ECD )
-        msg_Dbg( NULL, "  ECD scrambling system supported" );
+        Dbg( "  ECD scrambling system supported" );
     if ( caps.descr_type & CA_NDS )
-        msg_Dbg( NULL, "  NDS scrambling system supported" );
+        Dbg( "  NDS scrambling system supported" );
     if ( caps.descr_type & CA_DSS )
-        msg_Dbg( NULL, "  DSS scrambling system supported" );
+        Dbg( "  DSS scrambling system supported" );
 
     if ( caps.slot_num == 0 )
     {
-        msg_Err( NULL, "CAM module with no slots" );
+        Err( "CAM module with no slots" );
         close( i_ca_handle );
         i_ca_handle = 0;
         return;
@@ -2044,7 +2041,7 @@ void en50221_Init( void )
         i_ca_type = CA_CI;
     else
     {
-        msg_Err( NULL, "Incompatible CAM interface" );
+        Err( "Incompatible CAM interface" );
         close( i_ca_handle );
         i_ca_handle = 0;
         return;
@@ -2090,14 +2087,14 @@ void en50221_Reset( void )
          * ASIC. */
         if ( ioctl( i_ca_handle, CA_GET_SLOT_INFO, &info ) < 0 )
         {
-            msg_Err( NULL, "en50221_Init: couldn't get slot info" );
+            Err( "en50221_Init: couldn't get slot info" );
             close( i_ca_handle );
             i_ca_handle = 0;
             return;
         }
         if( info.flags == 0 )
         {
-            msg_Err( NULL, "en50221_Init: no CAM inserted" );
+            Err( "en50221_Init: no CAM inserted" );
             close( i_ca_handle );
             i_ca_handle = 0;
             return;
@@ -2122,7 +2119,7 @@ void en50221_Reset( void )
         APDUSend( NULL, 1, AOT_APPLICATION_INFO_ENQ, NULL, 0 );
         if ( ioctl( i_ca_handle, CA_GET_MSG, &ca_msg ) < 0 )
         {
-            msg_Err( NULL, "en50221_Init: failed getting message" );
+            Err( "en50221_Init: failed getting message" );
             close( i_ca_handle );
             i_ca_handle = 0;
             return;
@@ -2132,7 +2129,7 @@ void en50221_Reset( void )
         while( ca_msg.msg[8] == 0xff && ca_msg.msg[9] == 0xff )
         {
             msleep(1);
-            msg_Dbg( NULL, "CAM: please wait" );
+            Dbg( "CAM: please wait" );
             APDUSend( NULL, 1, AOT_APPLICATION_INFO_ENQ, NULL, 0 );
             ca_msg.length=3;
             ca_msg.msg[0] = ( AOT_APPLICATION_INFO & 0xFF0000 ) >> 16;
@@ -2141,24 +2138,24 @@ void en50221_Reset( void )
             memset( &ca_msg.msg[3], 0, 253 );
             if ( ioctl( i_ca_handle, CA_GET_MSG, &ca_msg ) < 0 )
             {
-                msg_Err( NULL, "en50221_Init: failed getting message" );
+                Err( "en50221_Init: failed getting message" );
                 close( i_ca_handle );
                 i_ca_handle = 0;
                 return;
             }
-            msg_Dbg( NULL, "en50221_Init: Got length: %d, tag: 0x%x", ca_msg.length, APDUGetTag( ca_msg.msg, ca_msg.length ) );
+            Dbg( "en50221_Init: Got length: %d, tag: 0x%x", ca_msg.length, APDUGetTag( ca_msg.msg, ca_msg.length ) );
         }
 #else
         if( ca_msg.msg[8] == 0xff && ca_msg.msg[9] == 0xff )
         {
-            msg_Err( NULL, "CAM returns garbage as application info!" );
+            Err( "CAM returns garbage as application info!" );
             close( i_ca_handle );
             i_ca_handle = 0;
             return;
         }
 #endif
-        msg_Dbg( NULL, "found CAM %s using id 0x%x", &ca_msg.msg[12],
-                 (ca_msg.msg[8]<<8)|ca_msg.msg[9] );
+        Dbg( "found CAM %s using id 0x%x", &ca_msg.msg[12],
+             (ca_msg.msg[8]<<8)|ca_msg.msg[9] );
     }
 }
 
@@ -2189,8 +2186,7 @@ static void en50221_Poll(struct ev_loop *loop, struct ev_timer *w, int revents)
         sinfo.num = i_slot;
         if ( ioctl( i_ca_handle, CA_GET_SLOT_INFO, &sinfo ) != 0 )
         {
-            msg_Err( NULL, "en50221_Poll: couldn't get info on slot %d",
-                     i_slot );
+            Err( "en50221_Poll: couldn't get info on slot %d", i_slot );
             continue;
         }
 
@@ -2198,8 +2194,7 @@ static void en50221_Poll(struct ev_loop *loop, struct ev_timer *w, int revents)
         {
             if ( p_slot->b_active )
             {
-                msg_Dbg( NULL, "en50221_Poll: slot %d has been removed",
-                         i_slot );
+                Dbg( "en50221_Poll: slot %d has been removed", i_slot );
                 ResetSlot( i_slot );
             }
         }
@@ -2228,8 +2223,7 @@ static void en50221_Poll(struct ev_loop *loop, struct ev_timer *w, int revents)
         {
             if ( TPDUSend( NULL, i_slot, T_DATA_LAST, NULL, 0 ) != 0 )
             {
-                msg_Warn( NULL, "couldn't send TPDU, resetting slot %d",
-                          i_slot );
+                Warn( "couldn't send TPDU, resetting slot %d", i_slot );
                 switch (i_print_type) {
                 case PRINT_XML:
                     fprintf(print_fh,
@@ -2295,7 +2289,7 @@ uint8_t en50221_StatusMMI( uint8_t *p_answer, ssize_t *pi_size )
 
     if ( ioctl( i_ca_handle, CA_GET_CAP, &p_ret->caps ) != 0 )
     {
-        msg_Err( NULL, "ioctl CA_GET_CAP failed (%s)", strerror(errno) );
+        Err( "ioctl CA_GET_CAP failed (%s)", strerror(errno) );
         return RET_ERR;
     }
 
@@ -2318,7 +2312,7 @@ uint8_t en50221_StatusMMISlot( uint8_t *p_buffer, ssize_t i_size,
     p_ret->sinfo.num = i_slot;
     if ( ioctl( i_ca_handle, CA_GET_SLOT_INFO, &p_ret->sinfo ) != 0 )
     {
-        msg_Err( NULL, "ioctl CA_GET_SLOT_INFO failed (%s)", strerror(errno) );
+        Err( "ioctl CA_GET_SLOT_INFO failed (%s)", strerror(errno) );
         return RET_ERR;
     }
 
@@ -2344,9 +2338,8 @@ uint8_t en50221_OpenMMI( uint8_t *p_buffer, ssize_t i_size )
             if ( p_sessions[i_session_id - 1].i_resource_id == RI_MMI
                   && p_sessions[i_session_id - 1].i_slot == i_slot )
             {
-                msg_Dbg( NULL,
-                         "MMI menu is already opened on slot %d (session=%d)",
-                         i_slot, i_session_id );
+                Dbg( "MMI menu is already opened on slot %d (session=%d)",
+                     i_slot, i_session_id );
                 return RET_OK;
             }
         }
@@ -2362,12 +2355,12 @@ uint8_t en50221_OpenMMI( uint8_t *p_buffer, ssize_t i_size )
             }
         }
 
-        msg_Err( NULL, "no application information on slot %d", i_slot );
+        Err( "no application information on slot %d", i_slot );
         return RET_ERR;
     }
     else
     {
-        msg_Err( NULL, "MMI menu not supported" );
+        Err( "MMI menu not supported" );
         return RET_ERR;
     }
 }
@@ -2395,13 +2388,12 @@ uint8_t en50221_CloseMMI( uint8_t *p_buffer, ssize_t i_size )
             }
         }
 
-        msg_Warn( NULL, "closing a non-existing MMI session on slot %d",
-                  i_slot );
+        Warn( "closing a non-existing MMI session on slot %d", i_slot );
         return RET_ERR;
     }
     else
     {
-        msg_Err( NULL, "MMI menu not supported" );
+        Err( "MMI menu not supported" );
         return RET_ERR;
     }
 }
@@ -2443,7 +2435,7 @@ uint8_t en50221_GetMMIObject( uint8_t *p_buffer, ssize_t i_size,
                                pi_size, &p_mmi->last_object ) == -1 )
             {
                 *pi_size = 0;
-                msg_Err( NULL, "MMI structure too big" );
+                Err( "MMI structure too big" );
                 return RET_ERR;
             }
             *pi_size += ((void *)&p_ret->object - (void *)p_ret);
@@ -2465,7 +2457,7 @@ uint8_t en50221_SendMMIObject( uint8_t *p_buffer, ssize_t i_size )
 
     if ( i_size < sizeof(struct cmd_mmi_send))
     {
-        msg_Err( NULL, "command packet too short (%zd)\n", i_size );
+        Err( "command packet too short (%zd)\n", i_size );
         return RET_HUH;
     }
 
@@ -2485,7 +2477,7 @@ uint8_t en50221_SendMMIObject( uint8_t *p_buffer, ssize_t i_size )
         }
     }
 
-    msg_Err( NULL, "SendMMIObject when no MMI session is opened !" );
+    Err( "SendMMIObject when no MMI session is opened !" );
     return RET_ERR;
 }
 

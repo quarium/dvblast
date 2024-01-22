@@ -97,14 +97,14 @@ void udp_Open( void )
     p_bind_ai = ParseNodeService( psz_bind, &psz_string, DEFAULT_PORT );
     if ( p_bind_ai == NULL )
     {
-        msg_Err( NULL, "couldn't parse %s", psz_bind );
+        Err( "couldn't parse %s", psz_bind );
         exit(EXIT_FAILURE);
     }
     i_family = p_bind_ai->ai_family;
 
     if ( p_connect_ai != NULL && p_connect_ai->ai_family != i_family )
     {
-        msg_Warn( NULL, "invalid connect address" );
+        Warn( "invalid connect address" );
         freeaddrinfo( p_connect_ai );
         p_connect_ai = NULL;
     }
@@ -134,7 +134,7 @@ void udp_Open( void )
                 psz_ifname[IFNAMSIZ-1] = '\0';
             }
         } else
-            msg_Warn( NULL, "unrecognized option %s", psz_string );
+            Warn( "unrecognized option %s", psz_string );
 
 #undef IS_OPTION
 #undef ARG_OPTION
@@ -149,7 +149,7 @@ void udp_Open( void )
 
     if ( (i_handle = socket( i_family, SOCK_DGRAM, IPPROTO_UDP )) < 0 )
     {
-        msg_Err( NULL, "couldn't create socket (%s)", strerror(errno) );
+        Err( "couldn't create socket (%s)", strerror(errno) );
         exit(EXIT_FAILURE);
     }
 
@@ -163,7 +163,7 @@ void udp_Open( void )
 
     if ( bind( i_handle, p_bind_ai->ai_addr, p_bind_ai->ai_addrlen ) < 0 )
     {
-        msg_Err( NULL, "couldn't bind (%s)", strerror(errno) );
+        Err( "couldn't bind (%s)", strerror(errno) );
         close( i_handle );
         exit(EXIT_FAILURE);
     }
@@ -178,7 +178,7 @@ void udp_Open( void )
 
         if ( i_port != 0 && connect( i_handle, p_connect_ai->ai_addr,
                                      p_connect_ai->ai_addrlen ) < 0 )
-            msg_Warn( NULL, "couldn't connect socket (%s)", strerror(errno) );
+            Warn( "couldn't connect socket (%s)", strerror(errno) );
     }
 
     /* Join the multicast group if the socket is a multicast address */
@@ -192,12 +192,11 @@ void udp_Open( void )
             imr.ipv6mr_multiaddr = p_addr->sin6_addr;
             imr.ipv6mr_interface = i_if_index;
             if ( i_if_addr != INADDR_ANY )
-                msg_Warn( NULL, "ignoring ifaddr option in IPv6" );
+                Warn( "ignoring ifaddr option in IPv6" );
 
             if ( setsockopt( i_handle, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
                              (char *)&imr, sizeof(struct ipv6_mreq) ) < 0 )
-                msg_Warn( NULL, "couldn't join multicast group (%s)",
-                          strerror(errno) );
+                Warn( "couldn't join multicast group (%s)", strerror(errno) );
         }
     }
     else
@@ -209,7 +208,7 @@ void udp_Open( void )
             if ( p_connect_ai != NULL )
             {
 #ifndef IP_ADD_SOURCE_MEMBERSHIP
-                msg_Err( NULL, "IP_ADD_SOURCE_MEMBERSHIP is unsupported." );
+                Err( "IP_ADD_SOURCE_MEMBERSHIP is unsupported." );
 #else
                 /* Source-specific multicast */
                 struct sockaddr *p_src = p_connect_ai->ai_addr;
@@ -218,12 +217,12 @@ void udp_Open( void )
                 imr.imr_interface.s_addr = i_if_addr;
                 imr.imr_sourceaddr = ((struct sockaddr_in *)p_src)->sin_addr;
                 if ( i_if_index )
-                    msg_Warn( NULL, "ignoring ifindex option in SSM" );
+                    Warn( "ignoring ifindex option in SSM" );
 
                 if ( setsockopt( i_handle, IPPROTO_IP, IP_ADD_SOURCE_MEMBERSHIP,
                             (char *)&imr, sizeof(struct ip_mreq_source) ) < 0 )
-                    msg_Warn( NULL, "couldn't join multicast group (%s)",
-                              strerror(errno) );
+                    Warn( "couldn't join multicast group (%s)",
+                          strerror(errno) );
 #endif
             }
             else if ( i_if_index )
@@ -238,8 +237,8 @@ void udp_Open( void )
 
                 if ( setsockopt( i_handle, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                                  (char *)&imr, sizeof(struct ip_mreqn) ) < 0 )
-                    msg_Warn( NULL, "couldn't join multicast group (%s)",
-                              strerror(errno) );
+                    Warn( "couldn't join multicast group (%s)",
+                          strerror(errno) );
             }
             else
             {
@@ -250,15 +249,15 @@ void udp_Open( void )
 
                 if ( setsockopt( i_handle, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                                  (char *)&imr, sizeof(struct ip_mreq) ) == -1 )
-                    msg_Warn( NULL, "couldn't join multicast group (%s)",
-                              strerror(errno) );
+                    Warn( "couldn't join multicast group (%s)",
+                          strerror(errno) );
             }
 #ifdef SO_BINDTODEVICE
             if (psz_ifname) {
                 if ( setsockopt( i_handle, SOL_SOCKET, SO_BINDTODEVICE,
                                  psz_ifname, strlen(psz_ifname)+1 ) < 0 ) {
-                    msg_Err( NULL, "couldn't bind to device %s (%s)",
-                             psz_ifname, strerror(errno) );
+                    Err( "couldn't bind to device %s (%s)",
+                         psz_ifname, strerror(errno) );
                 }
                 free(psz_ifname);
                 psz_ifname = NULL;
@@ -272,7 +271,7 @@ void udp_Open( void )
         freeaddrinfo( p_connect_ai );
     free( psz_save );
 
-    msg_Dbg( NULL, "binding socket to %s", psz_udp_src );
+    Dbg( "binding socket to %s", psz_udp_src );
 
     ev_io_init(&udp_watcher, udp_Read, i_handle, EV_READ);
     ev_io_start(event_loop, &udp_watcher);
@@ -320,7 +319,7 @@ static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
             {
                 memcpy( &last_addr, &addr, mh.msg_namelen );
 
-                msg_Info( NULL, "source: %s:%s", psz_addr, psz_port );
+                Info( "source: %s:%s", psz_addr, psz_port );
                 switch (i_print_type) {
                 case PRINT_XML:
                     fprintf(print_fh, "<STATUS type=\"source\" address=\"%s\" port=\"%s\"/>\n", psz_addr, psz_port);
@@ -363,7 +362,7 @@ static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 
     if ( (i_len = readv( i_handle, p_iov, i_iov )) < 0 )
     {
-        msg_Err( NULL, "couldn't read from network (%s)", strerror(errno) );
+        Err( "couldn't read from network (%s)", strerror(errno) );
         goto err;
     }
 
@@ -372,20 +371,20 @@ static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
         uint8_t pi_new_ssrc[4];
 
         if ( !rtp_check_hdr(p_rtp_hdr) )
-            msg_Warn( NULL, "invalid RTP packet received" );
+            Warn( "invalid RTP packet received" );
         if ( rtp_get_type(p_rtp_hdr) != RTP_TYPE_TS )
-            msg_Warn( NULL, "non-TS RTP packet received" );
+            Warn( "non-TS RTP packet received" );
         rtp_get_ssrc(p_rtp_hdr, pi_new_ssrc);
         if ( !memcmp( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) ) )
         {
             if ( rtp_get_seqnum(p_rtp_hdr) != i_seqnum )
-                msg_Warn( NULL, "RTP discontinuity" );
+                Warn( "RTP discontinuity" );
         }
         else
         {
             struct in_addr addr;
             memcpy( &addr.s_addr, pi_new_ssrc, 4 * sizeof(uint8_t) );
-            msg_Dbg( NULL, "new RTP source: %s", inet_ntoa( addr ) );
+            Dbg( "new RTP source: %s", inet_ntoa( addr ) );
             memcpy( pi_ssrc, pi_new_ssrc, 4 * sizeof(uint8_t) );
             switch (i_print_type) {
             case PRINT_XML:
@@ -411,7 +410,7 @@ static void udp_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     {
         if ( !b_sync )
         {
-            msg_Info( NULL, "frontend has acquired lock" );
+            Info( "frontend has acquired lock" );
             switch (i_print_type) {
             case PRINT_XML:
                 fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
@@ -447,7 +446,7 @@ err:
 
 static void udp_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    msg_Warn( NULL, "frontend has lost lock" );
+    Warn( "frontend has lost lock" );
     ev_timer_stop(loop, w);
 
     switch (i_print_type) {

@@ -80,6 +80,25 @@ struct udprawpkt {
 } __attribute__((packed));
 
 /*****************************************************************************
+ * msg_Log
+ *****************************************************************************/
+#define MAX_MSG 1024
+#define VERB_DBG  4
+#define VERB_INFO 3
+#define VERB_WARN 2
+#define VERB_ERR 1
+
+#define MSG_LOG( LOG, NAME, LEVEL )                                         \
+__attribute__ ((format(printf, 2, 3)))                                      \
+void LOG##_##NAME( void *priv, const char *psz_format, ... )                \
+{                                                                           \
+    va_list args;                                                           \
+    va_start( args, psz_format );                                           \
+    LOG##_Log( LEVEL, priv, psz_format, args );                             \
+    va_end(args);                                                           \
+}
+
+/*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
  * Bit  0 : Set for watch mode
  * Bit  1 : Set output still present
@@ -289,11 +308,23 @@ void msg_Connect( const char *ident );
 void msg_Disconnect( void );
 
 /* */
-__attribute__ ((format(printf, 2, 3))) void msg_Info( void *_unused, const char *psz_format, ... );
-__attribute__ ((format(printf, 2, 3))) void msg_Err( void *_unused, const char *psz_format, ... );
-__attribute__ ((format(printf, 2, 3))) void msg_Warn( void *_unused, const char *psz_format, ... );
-__attribute__ ((format(printf, 2, 3))) void msg_Dbg( void *_unused, const char *psz_format, ... );
-__attribute__ ((format(printf, 2, 3))) void msg_Raw( void *_unused, const char *psz_format, ... );
+void msg_Log( int level, void *_unused, const char *format, va_list args );
+__attribute__ ((format(printf, 2, 3)))
+    void msg_Info( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void msg_Err( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void msg_Warn( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void msg_Dbg( void *_unused, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void msg_Raw( void *_unused, const char *psz_format, ... );
+
+#define Info( ... )    msg_Info( NULL, __VA_ARGS__ )
+#define Err( ... )     msg_Err( NULL, __VA_ARGS__ )
+#define Warn( ... )    msg_Warn( NULL, __VA_ARGS__ )
+#define Dbg( ... )     msg_Dbg( NULL, __VA_ARGS__ )
+#define Raw( ... )     msg_Raw( NULL, __VA_ARGS__ )
 
 /* */
 bool streq(char *a, char *b);

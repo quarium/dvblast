@@ -44,11 +44,20 @@
  * Local declarations
  *****************************************************************************/
 #define MAX_BLOCKS 500
-#define MAX_MSG 1024
-#define VERB_DBG  4
-#define VERB_INFO 3
-#define VERB_WARN 2
-#define VERB_ERR 1
+
+typedef struct msg_level_t {
+    int level;
+    int syslog_level;
+    const char *prefix;
+} msg_level_t;
+
+static const msg_level_t msg_levels[] = {
+    { VERB_ERR,     LOG_ERR,        "error" },
+    { VERB_WARN,    LOG_WARNING,    "warning" },
+    { VERB_INFO,    LOG_INFO,       "info" },
+    { VERB_DBG,     LOG_DEBUG,      "debug" },
+};
+#define MSG_LEVELS_MAX  (sizeof (msg_levels) / sizeof (msg_levels[0]) )
 
 static block_t *p_block_lifo = NULL;
 static unsigned int i_block_count = 0;
@@ -125,104 +134,35 @@ void msg_Disconnect( void )
 }
 
 /*****************************************************************************
- * msg_Info
+ * msg_Log
  *****************************************************************************/
-void msg_Info( void *_unused, const char *psz_format, ... )
+void msg_Log( int level, void *_unused, const char *format, va_list args )
 {
-    if ( i_verbose < VERB_INFO )
+    level = level > VERB_DBG ? VERB_DBG : level;
+    level = level < VERB_ERR ? VERB_ERR : level;
+    if ( i_verbose < level )
         return;
 
-    va_list args;
-    va_start( args, psz_format );
-
+    const msg_level_t *msg_level = &msg_levels[level - 1];
     if ( !i_syslog )
     {
         char psz_fmt[MAX_MSG];
-        snprintf( psz_fmt, MAX_MSG, "info: %s\n", psz_format );
+        snprintf( psz_fmt, MAX_MSG, "%s: %s\n", msg_level->prefix, format );
         vfprintf( stderr, psz_fmt, args );
     }
     else
     {
-        vsyslog( LOG_INFO, psz_format, args );
+        vsyslog( msg_level->syslog_level, format, args );
     }
-
-    va_end(args);
 }
 
 /*****************************************************************************
- * msg_Err
+ * msg_Dbg / msg_Info / msg_Err / msg_Warn
  *****************************************************************************/
-void msg_Err( void *_unused, const char *psz_format, ... )
-{
-    if ( i_verbose < VERB_ERR )
-        return;
-
-    va_list args;
-    va_start( args, psz_format );
-
-    if ( !i_syslog )
-    {
-        char psz_fmt[MAX_MSG];
-        snprintf( psz_fmt, MAX_MSG, "error: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
-    }
-    else
-    {
-        vsyslog( LOG_ERR, psz_format, args );
-    }
-
-    va_end(args);
-}
-
-/*****************************************************************************
- * msg_Warn
- *****************************************************************************/
-void msg_Warn( void *_unused, const char *psz_format, ... )
-{
-    if ( i_verbose < VERB_WARN )
-        return;
-
-    va_list args;
-    va_start( args, psz_format );
-
-    if ( !i_syslog )
-    {
-        char psz_fmt[MAX_MSG];
-        snprintf( psz_fmt, MAX_MSG, "warning: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
-    }
-    else
-    {
-        vsyslog( LOG_WARNING, psz_format, args );
-    }
-
-    va_end(args);
-}
-
-/*****************************************************************************
- * msg_Dbg
- *****************************************************************************/
-void msg_Dbg( void *_unused, const char *psz_format, ... )
-{
-    if ( i_verbose < VERB_DBG )
-        return;
-
-    va_list args;
-    va_start( args, psz_format );
-
-    if ( !i_syslog )
-    {
-        char psz_fmt[MAX_MSG];
-        snprintf( psz_fmt, MAX_MSG, "debug: %s\n", psz_format );
-        vfprintf( stderr, psz_fmt, args );
-    }
-    else
-    {
-        vsyslog( LOG_DEBUG, psz_format, args );
-    }
-
-    va_end(args);
-}
+MSG_LOG( msg, Dbg, VERB_DBG )
+MSG_LOG( msg, Info, VERB_INFO )
+MSG_LOG( msg, Err, VERB_ERR )
+MSG_LOG( msg, Warn, VERB_WARN )
 
 /*****************************************************************************
  * msg_Raw
@@ -383,7 +323,7 @@ void hexDump( uint8_t *p_data, uint32_t i_len )
         }
 
         sprintf( &p_outline[53], "%16s", p_hrdata );
-        msg_Dbg( NULL, "%s", p_outline );
+        Dbg( "%s", p_outline );
     }
 
     free( p_hrdata );
@@ -411,7 +351,7 @@ struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
         psz_end = strchr( psz_node, ']' );
         if ( psz_end == NULL )
         {
-            msg_Warn( NULL, "invalid IPv6 address %s", _psz_string );
+            Warn( "invalid IPv6 address %s", _psz_string );
             free( psz_string );
             return NULL;
         }
@@ -458,7 +398,7 @@ struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
     hint.ai_flags = AI_PASSIVE | AI_NUMERICHOST | AI_NUMERICSERV | AI_ADDRCONFIG;
     if ( (i_ret = getaddrinfo( psz_node, psz_port, NULL, &p_res )) != 0 )
     {
-        msg_Warn( NULL, "getaddrinfo(host=%s, port=%s) error: %s",
+        Warn( "getaddrinfo(host=%s, port=%s) error: %s",
             psz_node, psz_port ? psz_port : "", gai_strerror(i_ret) );
         free( psz_string );
         return NULL;
@@ -537,7 +477,7 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
     pp_sections = psi_table_allocate();
     if ( !pp_sections )
     {
-        msg_Err( NULL, "%s: cannot allocate PSI table\n", __func__ );
+        Err( "%s: cannot allocate PSI table\n", __func__ );
         return NULL;
     }
 
@@ -549,7 +489,7 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
 
         if ( !psi_validate( p_section ) )
         {
-            msg_Err( NULL, "%s: Invalid section %d\n", __func__, i );
+            Err( "%s: Invalid section %d\n", __func__, i );
             psi_table_free( pp_sections );
             return NULL;
         }
@@ -558,7 +498,7 @@ uint8_t **psi_unpack_sections( uint8_t *p_flat_sections, unsigned int i_size ) {
         uint8_t *p_section_local = psi_private_allocate();
         if ( !p_section_local )
         {
-            msg_Err( NULL, "%s: cannot allocate PSI private\n", __func__ );
+            Err( "%s: cannot allocate PSI private\n", __func__ );
             psi_table_free( pp_sections );
             return NULL;
         }

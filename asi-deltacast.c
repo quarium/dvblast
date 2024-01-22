@@ -78,47 +78,47 @@ void asi_deltacast_Open( void )
     res = Asi_GetApiInfo(&ApiVersion,&DrvVersion,&NbBoards);
     if (!res)
     {
-        msg_Err( NULL, "couldn't get Deltacast API Info: 0x%08lX",
-                 (unsigned long) Dc_GetLastError(NULL) );
+        Err( "couldn't get Deltacast API Info: 0x%08lX",
+             (unsigned long) Dc_GetLastError(NULL) );
         exit(EXIT_FAILURE);
     }
 
-    msg_Dbg( NULL, "Deltacast StreamMaster DLL v%d.%d",
-             (int)ApiVersion>>16,
-             (int)ApiVersion&0xFFFF);
-    msg_Dbg( NULL, "Deltacast Driver v%d.%d.%d",
-             (DrvVersion >> 24) & 0xFF,
-             (DrvVersion >> 16) & 0xFF,
-             (DrvVersion >>  8) & 0xFF);
-    msg_Dbg( NULL, "Deltacast Board Count: %d", NbBoards);
+    Dbg( "Deltacast StreamMaster DLL v%d.%d",
+         (int)ApiVersion>>16,
+         (int)ApiVersion&0xFFFF);
+    Dbg( "Deltacast Driver v%d.%d.%d",
+         (DrvVersion >> 24) & 0xFF,
+         (DrvVersion >> 16) & 0xFF,
+         (DrvVersion >>  8) & 0xFF);
+    Dbg( "Deltacast Board Count: %d", NbBoards);
 
     /* Get the board information */
     res = Asi_GetBoardInfoEx((int)(i_asi_adapter / 100), &BoardInfoEx);
     if (!res)
     {
-        msg_Err( NULL, "couldn't get Deltacast board Info: 0x%08lX",
-				(unsigned long) Dc_GetLastError(NULL) );
+        Err( "couldn't get Deltacast board Info: 0x%08lX",
+             (unsigned long) Dc_GetLastError(NULL) );
         exit(EXIT_FAILURE);
     }
 
-    msg_Dbg( NULL, "Deltacast Board FPGA v%08lX",
-             (unsigned long)BoardInfoEx.BaseInformation.FPGAVersion);
-    msg_Dbg( NULL, "Deltacast Board PLD v%08lX",
-             (unsigned long)BoardInfoEx.BaseInformation.PLDVersion);
-    msg_Dbg( NULL, "Deltacast Board PLX v%08lX",
-             (unsigned long)BoardInfoEx.BaseInformation.PLXRevision);
-    msg_Dbg( NULL, "Deltacast Board Serial %08X%08X",
-             (ULONG)(BoardInfoEx.BaseInformation.SerialNb>>32),
-             (ULONG)(BoardInfoEx.BaseInformation.SerialNb&0xFFFFFFFF));
-    msg_Dbg( NULL, "Deltacast Board Input Count: %d", BoardInfoEx.NbRxChannels_i);
-    msg_Dbg( NULL, "Deltacast Board Output Count: %d", BoardInfoEx.NbTxChannels_i);
+    Dbg( "Deltacast Board FPGA v%08lX",
+         (unsigned long)BoardInfoEx.BaseInformation.FPGAVersion);
+    Dbg( "Deltacast Board PLD v%08lX",
+         (unsigned long)BoardInfoEx.BaseInformation.PLDVersion);
+    Dbg( "Deltacast Board PLX v%08lX",
+         (unsigned long)BoardInfoEx.BaseInformation.PLXRevision);
+    Dbg( "Deltacast Board Serial %08X%08X",
+         (ULONG)(BoardInfoEx.BaseInformation.SerialNb>>32),
+         (ULONG)(BoardInfoEx.BaseInformation.SerialNb&0xFFFFFFFF));
+    Dbg( "Deltacast Board Input Count: %d", BoardInfoEx.NbRxChannels_i);
+    Dbg( "Deltacast Board Output Count: %d", BoardInfoEx.NbTxChannels_i);
 
     /* Open the board */
     h_board = Asi_SetupBoard((int)(i_asi_adapter / 100));
     if (h_board == NULL)
     {
-        msg_Err( NULL, "couldn't setup deltacast board %d: 0x%08lX",
-                 (int)(i_asi_adapter / 100), (unsigned long) Dc_GetLastError(NULL) );
+        Err( "couldn't setup deltacast board %d: 0x%08lX",
+             (int)(i_asi_adapter / 100), (unsigned long) Dc_GetLastError(NULL) );
         exit(EXIT_FAILURE);
     }
 
@@ -137,8 +137,8 @@ void asi_deltacast_Open( void )
     h_channel = Asi_OpenChannel(h_board, ASI_CHN_RX0 + (i_asi_adapter % 100), &RXConfig);
     if (h_channel == NULL)
     {
-        msg_Err( NULL, "couldn't setup deltacast channel %d: 0x%08lX",
-                 (i_asi_adapter % 100), (unsigned long) Dc_GetLastError(NULL) );
+        Err( "couldn't setup deltacast channel %d: 0x%08lX",
+             (i_asi_adapter % 100), (unsigned long) Dc_GetLastError(NULL) );
         exit(EXIT_FAILURE);
     }
 
@@ -170,14 +170,14 @@ static void asi_deltacast_Read(struct ev_loop *loop, struct ev_io *w, int revent
 
         if (Err != DCERR_TIMEOUT)
         {
-          msg_Warn( NULL, "asi_deltacast_Read(): GetInputBuffer failed: 0x%08X!", Err);
+          Warn( "asi_deltacast_Read(): GetInputBuffer failed: 0x%08X!", Err);
         }
         return;
     }
 
     if ( !b_sync )
     {
-        msg_Info( NULL, "frontend has acquired lock" );
+        Info( "frontend has acquired lock" );
         switch (i_print_type) {
         case PRINT_XML:
             fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
@@ -204,14 +204,14 @@ static void asi_deltacast_Read(struct ev_loop *loop, struct ev_io *w, int revent
 
     res = Asi_ReleaseInputBuffer(h_channel);
 
-//    msg_Warn( NULL, "asi_deltacast_Read(): returning %d blocks", i_asibuf_len / TS_SIZE );
+//    Warn( "asi_deltacast_Read(): returning %d blocks", i_asibuf_len / TS_SIZE );
 
     demux_Run( p_ts );
 }
 
 static void asi_deltacast_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    msg_Warn( NULL, "frontend has lost lock" );
+    Warn( "frontend has lost lock" );
     ev_timer_stop(loop, w);
 
     switch (i_print_type) {
@@ -232,7 +232,7 @@ static void asi_deltacast_MuteCb(struct ev_loop *loop, struct ev_timer *w, int r
 int asi_deltacast_SetFilter( uint16_t i_pid )
 {
     /* TODO: Support PID filtering */
-    msg_Warn( NULL, "asi_deltacast_SetFilter(%d) not yet implemented", i_pid );
+    Warn( "asi_deltacast_SetFilter(%d) not yet implemented", i_pid );
     return -1;
 }
 
@@ -242,7 +242,7 @@ int asi_deltacast_SetFilter( uint16_t i_pid )
 void asi_deltacast_UnsetFilter( int i_fd, uint16_t i_pid )
 {
     /* TODO: Support PID filtering */
-    msg_Warn( NULL, "asi_deltacast_UnsetFilter() not yet implemented" );
+    Warn( "asi_deltacast_UnsetFilter() not yet implemented" );
 }
 
 /*****************************************************************************
@@ -251,7 +251,7 @@ void asi_deltacast_UnsetFilter( int i_fd, uint16_t i_pid )
 void asi_deltacast_Reset( void )
 {
     /* Called when retune required, so nothing required */
-    msg_Warn( NULL, "asi_deltacast_Reset() do nothing" );
+    Warn( "asi_deltacast_Reset() do nothing" );
 }
 
 #endif

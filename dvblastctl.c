@@ -139,8 +139,8 @@ char *psi_iconv(void *_unused, const char *psz_encoding,
     if (iconv_handle == (iconv_t)-1)
         iconv_handle = iconv_open(psz_native_charset, psz_encoding);
     if (iconv_handle == (iconv_t)-1) {
-        msg_Warn(NULL, "couldn't open converter from %s to %s (%m)", psz_encoding,
-                psz_native_charset);
+        Warn( "couldn't open converter from %s to %s (%m)", psz_encoding,
+              psz_native_charset);
         return iconv_append_null(p_string, i_length);
     }
     psz_current_encoding = psz_encoding;
@@ -149,14 +149,14 @@ char *psi_iconv(void *_unused, const char *psz_encoding,
     i_out_length = i_length * 6;
     p = psz_string = malloc(i_out_length);
     if (iconv(iconv_handle, &p_string, &i_length, &p, &i_out_length) == (size_t)-1) {
-        msg_Warn(NULL, "couldn't convert from %s to %s (%m)", psz_encoding,
-                psz_native_charset);
+        Warn( "couldn't convert from %s to %s (%m)", psz_encoding,
+              psz_native_charset);
         free(psz_string);
         return iconv_append_null(p_string, i_length);
     }
     if (i_length)
-        msg_Warn(NULL, "partial conversion from %s to %s", psz_encoding,
-                psz_native_charset);
+        Warn( "partial conversion from %s to %s", psz_encoding,
+              psz_native_charset);
 
     *p = '\0';
     return psz_string;
@@ -440,7 +440,7 @@ int main( int i_argc, char **ppsz_argv )
             else if ( !strcmp(optarg, "xml") )
                 i_print_type = PRINT_XML;
             else
-                msg_Warn( NULL, "unrecognized print type %s", optarg );
+                Warn( "unrecognized print type %s", optarg );
             /* Make stdout line-buffered */
             setvbuf(stdout, NULL, _IOLBF, 0);
             break;
@@ -454,7 +454,7 @@ int main( int i_argc, char **ppsz_argv )
     /* Validate commands */
 #define usage_error(msg, ...) \
         do { \
-            msg_Err( NULL, msg, ##__VA_ARGS__ ); \
+            Err( msg, ##__VA_ARGS__ ); \
             usage(); \
         } while(0)
     p_cmd  = ppsz_argv[optind];

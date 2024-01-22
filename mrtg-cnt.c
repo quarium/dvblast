@@ -151,8 +151,8 @@ void mrtgAnalyse(block_t * p_ts)
         // stopped for some time), then just rebase the timing to the current
         // time.  I've chosen MRTG_INTERVAL as the long gap - this is arbitary
         if ((now.tv_sec - mrtg_time.tv_sec) > MRTG_INTERVAL) {
-            msg_Dbg(NULL, "Dump is %d seconds late - reset timing\n",
-                    (int) (now.tv_sec - mrtg_time.tv_sec));
+            Dbg( "Dump is %d seconds late - reset timing\n",
+                 (int) (now.tv_sec - mrtg_time.tv_sec));
             mrtg_time = now;
         }
         mrtg_time.tv_sec += MRTG_INTERVAL;
@@ -165,9 +165,9 @@ int mrtgInit(char *mrtg_file)
         return -1;
 
     /* Open MRTG file */
-    msg_Dbg(NULL, "Opening mrtg file %s.\n", mrtg_file);
+    Dbg( "Opening mrtg file %s.\n", mrtg_file);
     if ((mrtg_fh = fopen(mrtg_file, "wb")) == NULL) {
-        msg_Err(NULL, "unable to open mrtg file");
+        Err( "unable to open mrtg file");
         return -1;
     }
     // Initialise the file

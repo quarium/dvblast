@@ -254,9 +254,8 @@ static uint8_t *config_striconv( const char *psz_string,
     *pi_length = i_output - i_available;
     return (uint8_t *)p_output;
 #else
-    msg_Warn( NULL,
-              "unable to convert from %s to %s (iconv is not available)",
-              psz_native_charset, psz_charset );
+    Warn( "unable to convert from %s to %s (iconv is not available)",
+          psz_native_charset, psz_charset );
     return (uint8_t *)psz_input;
 #endif
 }
@@ -300,7 +299,7 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
         psz_string++;
         p_ai = ParseNodeService( psz_string, &psz_string, 0 );
         if ( p_ai == NULL || p_ai->ai_family != p_config->i_family )
-            msg_Warn( NULL, "invalid bind address" );
+            Warn( "invalid bind address" );
         else
             memcpy( &p_config->bind_addr, p_ai->ai_addr, p_ai->ai_addrlen );
         freeaddrinfo( p_ai );
@@ -355,7 +354,7 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
         else if ( IS_OPTION("srcaddr=") )
         {
             if ( p_config->i_family != AF_INET ) {
-                msg_Err( NULL, "RAW sockets currently implemented for ipv4 only");
+                Err( "RAW sockets currently implemented for ipv4 only" );
                 return false;
             }
             free( p_config->psz_srcaddr );
@@ -388,7 +387,7 @@ static bool config_ParseHost( output_config_t *p_config, char *psz_string )
         else if ( IS_OPTION("newsid=") )
             p_config->i_new_sid = strtol( ARG_OPTION("newsid="), NULL, 0 );
         else
-            msg_Warn( NULL, "unrecognized option %s", psz_string );
+            Warn( "unrecognized option %s", psz_string );
 
 #undef IS_OPTION
 #undef ARG_OPTION
@@ -410,7 +409,7 @@ end:
         p_config->i_mtu = i_mtu;
     else if ( p_config->i_mtu < TS_SIZE + RTP_HEADER_SIZE )
     {
-        msg_Warn( NULL, "invalid MTU %d, setting %d", p_config->i_mtu, i_mtu );
+        Warn( "invalid MTU %d, setting %d", p_config->i_mtu, i_mtu );
         p_config->i_mtu = i_mtu;
     }
 
@@ -421,8 +420,8 @@ static void config_Print( output_config_t *p_config )
 {
     if ( p_config->b_passthrough )
     {
-        msg_Dbg( NULL, "conf: %s config=0x%"PRIx64" sid=*",
-                 p_config->psz_displayname, p_config->i_config);
+        Dbg( "conf: %s config=0x%"PRIx64" sid=*",
+             p_config->psz_displayname, p_config->i_config );
         return;
     }
 
@@ -436,8 +435,8 @@ static void config_Print( output_config_t *p_config )
         j += sprintf( psz_format + j, "%u,", p_config->pi_pids[i] );
     psz_format[j - 1] = '\0';
 
-    msg_Dbg( NULL, psz_format, p_config->psz_displayname, p_config->i_config,
-             p_config->i_sid, p_config->i_nb_pids );
+    Dbg( psz_format, p_config->psz_displayname, p_config->i_config,
+         p_config->i_sid, p_config->i_nb_pids );
 }
 
 void config_ReadFile(void)
@@ -448,13 +447,13 @@ void config_ReadFile(void)
 
     if ( psz_conf_file == NULL )
     {
-        msg_Err( NULL, "no config file" );
+        Err( "no config file" );
         return;
     }
 
     if ( (p_file = fopen( psz_conf_file, "r" )) == NULL )
     {
-        msg_Err( NULL, "can't fopen config file %s", psz_conf_file );
+        Err( "can't fopen config file %s", psz_conf_file );
         return;
     }
 
@@ -556,7 +555,7 @@ void config_ReadFile(void)
         if ( (p_output->config.i_config & OUTPUT_VALID) &&
              !(p_output->config.i_config & OUTPUT_STILL_PRESENT) )
         {
-            msg_Dbg( NULL, "closing %s", p_output->config.psz_displayname );
+            Dbg( "closing %s", p_output->config.psz_displayname );
             demux_Change( p_output, &config );
             output_Close( p_output );
         }
@@ -585,12 +584,12 @@ static void sighandler(struct ev_loop *loop, struct ev_signal *w, int revents)
         case SIGINT:
         case SIGTERM:
         default:
-            msg_Info( NULL, "Shutdown was requested." );
+            Info( "Shutdown was requested." );
             ev_break(loop, EVBREAK_ALL);
             break;
 
         case SIGHUP:
-            msg_Info( NULL, "Configuration reload was requested." );
+            Info( "Configuration reload was requested." );
             config_ReadFile();
             break;
     }
@@ -609,7 +608,7 @@ static void quit_cb(struct ev_loop *loop, struct ev_timer *w, int revents)
  *****************************************************************************/
 static void DisplayVersion()
 {
-    msg_Raw( NULL, "DVBlast %s (%s)", VERSION, VERSION_EXTRA );
+    Raw( "DVBlast %s (%s)", VERSION, VERSION_EXTRA );
 }
 
 /*****************************************************************************
@@ -618,7 +617,7 @@ static void DisplayVersion()
 void usage()
 {
     DisplayVersion();
-    msg_Raw( NULL, "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] "
+    Raw( "Usage: dvblast [-q] [-c <config file>] [-r <remote socket>] [-t <ttl>] [-o <SSRC IP>] "
         "[-i <RT priority>] "
 #ifdef HAVE_ASI_SUPPORT
         "[-A <ASI adapter>]"
@@ -638,91 +637,91 @@ void usage()
         "[-J <DVB charset>] [-Q <quit timeout>] [-0 pid_mapping] [-x <text|xml>]"
         "[-6 <print period>] [-7 <ES timeout>] [-4 <UDP lock timeout>]" );
 
-    msg_Raw( NULL, "Input:" );
+    Raw( "Input:" );
 #ifdef HAVE_ASI_SUPPORT
-    msg_Raw( NULL, "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
+    Raw( "  -A --asi-adapter      read packets from an ASI adapter (0-n)" );
 #endif
 #ifdef HAVE_DVB_SUPPORT
-    msg_Raw( NULL, "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
-    msg_Raw( NULL, "  -b --bandwidth        frontend bandwidth" );
+    Raw( "  -a --adapter          read packets from a Linux-DVB adapter (typically 0-n)" );
+    Raw( "  -b --bandwidth        frontend bandwidth" );
 #endif
-    msg_Raw( NULL, "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
+    Raw( "  -D --rtp-input        read packets from a multicast address instead of a DVB card" );
 #ifdef HAVE_DVB_SUPPORT
-    msg_Raw( NULL, "  -5 --delsys           delivery system" );
-    msg_Raw( NULL, "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC|ISDBT|DVBC_ANNEX_B(ATSC-C/QAMB) (default guessed)");
-    msg_Raw( NULL, "  -f --frequency        frontend frequency" );
-    msg_Raw( NULL, "  -8 --lnb-type <type>  Set LNB type')" );
-    msg_Raw( NULL, "        universal old-sky (default: universal)");
-    msg_Raw( NULL, "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (default: 0)" );
-    msg_Raw( NULL, "  -F --fec-inner        Forward Error Correction (FEC Inner)");
-    msg_Raw( NULL, "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
-    msg_Raw( NULL, "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
-    msg_Raw( NULL, "  -m --modulation       Modulation type" );
-    msg_Raw( NULL, "    DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Raw( NULL, "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
-    msg_Raw( NULL, "    DVB-S2 qpsk|psk_8|apsk_16|apsk_32 (default legacy DVB-S)" );
-    msg_Raw( NULL, "  -n --frontend-number <frontend number>" );
-    msg_Raw( NULL, "     --sec-number <sec number>" );
-    msg_Raw( NULL, "  -p --force-pulse      force 22kHz pulses for high-band selection (DVB-S)" );
-    msg_Raw( NULL, "  -P --pilot            DVB-S2 Pilot (-1 auto, 0 off, 1 on)" );
-    msg_Raw( NULL, "  -R --rolloff          DVB-S2 Rolloff value" );
-    msg_Raw( NULL, "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
-    msg_Raw( NULL, "  -1 --multistream-id   Set stream ID (0-2147483648, default: 0)." );
-    msg_Raw( NULL, "     --multistream-id-pls-mode   Set multistream PLS mode (ROOT, GOLD, COMBO, default: ROOT)" );
-    msg_Raw( NULL, "     --multistream-id-pls-code   Set multistream PLS code (0-262143, default: 0)" );
-    msg_Raw( NULL, "     --multistream-id-is-id      Set multistream IS id (0-255, default: 0)" );
-    msg_Raw( NULL, "  -K --fec-lp           DVB-T low priority FEC (default auto)" );
-    msg_Raw( NULL, "  -G --guard            DVB-T guard interval" );
-    msg_Raw( NULL, "    DVB-T  32 (1/32)|16 (1/16)|8 (1/8)|4 (1/4)|-1 (auto, default)" );
-    msg_Raw( NULL, "  -H --hierarchy        DVB-T hierarchy (0, 1, 2, 4 or -1 auto, default)" );
-    msg_Raw( NULL, "  -X --transmission     DVB-T transmission (2, 4, 8 or -1 auto, default)" );
-    msg_Raw( NULL, "  -s --symbol-rate" );
-    msg_Raw( NULL, "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
-    msg_Raw( NULL, "  -k --uncommitted      port number for uncommitted DiSEqC switch (0: no uncommitted DiSEqC switch, 1-16)" );
-    msg_Raw( NULL, "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
-    msg_Raw( NULL, "  -v --voltage          voltage to apply to the LNB (QPSK)" );
-    msg_Raw( NULL, "  -w --select-pmts      set a PID filter on all PMTs (auto on, when config file is used)" );
-    msg_Raw( NULL, "  -O --lock-timeout     timeout for the lock operation (in ms)" );
-    msg_Raw( NULL, "  -y --ca-number <ca_device_number>" );
-    msg_Raw( NULL, "  -2 --dvr-buf-size <size> set the size of the DVR TS buffer in bytes (default: %d)", i_dvr_buffer_size);
+    Raw( "  -5 --delsys           delivery system" );
+    Raw( "    DVBS|DVBS2|DVBC_ANNEX_A|DVBT|DVBT2|ATSC|ISDBT|DVBC_ANNEX_B(ATSC-C/QAMB) (default guessed)");
+    Raw( "  -f --frequency        frontend frequency" );
+    Raw( "  -8 --lnb-type <type>  Set LNB type')" );
+    Raw( "        universal old-sky (default: universal)");
+    Raw( "  -9 --dvb-plp-id <number> Switch PLP of the DVB-T2 transmission (default: 0)" );
+    Raw( "  -F --fec-inner        Forward Error Correction (FEC Inner)");
+    Raw( "    DVB-S2 0|12|23|34|35|56|78|89|910|999 (default auto: 999)");
+    Raw( "  -I --inversion        Inversion (-1 auto, 0 off, 1 on)" );
+    Raw( "  -m --modulation       Modulation type" );
+    Raw( "    DVB-C  qpsk|qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    Raw( "    DVB-T  qam_16|qam_32|qam_64|qam_128|qam_256 (default qam_auto)" );
+    Raw( "    DVB-S2 qpsk|psk_8|apsk_16|apsk_32 (default legacy DVB-S)" );
+    Raw( "  -n --frontend-number <frontend number>" );
+    Raw( "     --sec-number <sec number>" );
+    Raw( "  -p --force-pulse      force 22kHz pulses for high-band selection (DVB-S)" );
+    Raw( "  -P --pilot            DVB-S2 Pilot (-1 auto, 0 off, 1 on)" );
+    Raw( "  -R --rolloff          DVB-S2 Rolloff value" );
+    Raw( "    DVB-S2 35=0.35|25=0.25|20=0.20|0=AUTO (default: 35)" );
+    Raw( "  -1 --multistream-id   Set stream ID (0-2147483648, default: 0)." );
+    Raw( "     --multistream-id-pls-mode   Set multistream PLS mode (ROOT, GOLD, COMBO, default: ROOT)" );
+    Raw( "     --multistream-id-pls-code   Set multistream PLS code (0-262143, default: 0)" );
+    Raw( "     --multistream-id-is-id      Set multistream IS id (0-255, default: 0)" );
+    Raw( "  -K --fec-lp           DVB-T low priority FEC (default auto)" );
+    Raw( "  -G --guard            DVB-T guard interval" );
+    Raw( "    DVB-T  32 (1/32)|16 (1/16)|8 (1/8)|4 (1/4)|-1 (auto, default)" );
+    Raw( "  -H --hierarchy        DVB-T hierarchy (0, 1, 2, 4 or -1 auto, default)" );
+    Raw( "  -X --transmission     DVB-T transmission (2, 4, 8 or -1 auto, default)" );
+    Raw( "  -s --symbol-rate" );
+    Raw( "  -S --diseqc           satellite number for diseqc (0: no diseqc, 1-4, A or B)" );
+    Raw( "  -k --uncommitted      port number for uncommitted DiSEqC switch (0: no uncommitted DiSEqC switch, 1-16)" );
+    Raw( "  -u --budget-mode      turn on budget mode (no hardware PID filtering)" );
+    Raw( "  -v --voltage          voltage to apply to the LNB (QPSK)" );
+    Raw( "  -w --select-pmts      set a PID filter on all PMTs (auto on, when config file is used)" );
+    Raw( "  -O --lock-timeout     timeout for the lock operation (in ms)" );
+    Raw( "  -y --ca-number <ca_device_number>" );
+    Raw( "  -2 --dvr-buf-size <size> set the size of the DVR TS buffer in bytes (default: %d)", i_dvr_buffer_size);
 #endif
 
-    msg_Raw( NULL, "Output:" );
-    msg_Raw( NULL, "  -c --config-file <config file>" );
-    msg_Raw( NULL, "  -C --dvb-compliance   pass through or build the mandatory DVB tables" );
-    msg_Raw( NULL, "  -d --duplicate        duplicate all received packets to a given destination" );
-    msg_Raw( NULL, "  -3 --passthrough      duplicate all received packets to stdout" );
-    msg_Raw( NULL, "  -W --emm-passthrough  pass through EMM data (CA system data)" );
-    msg_Raw( NULL, "  -Y --ecm-passthrough  pass through ECM data (CA program data)" );
-    msg_Raw( NULL, "  -e --epg-passthrough  pass through DVB EIT schedule tables" );
-    msg_Raw( NULL, "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
-    msg_Raw( NULL, "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
-    msg_Raw( NULL, "  -M --network-name     DVB network name to declare in the NIT" );
-    msg_Raw( NULL, "  -N --network-id       DVB network ID to declare in the NIT" );
-    msg_Raw( NULL, "  -B --provider-name    Service provider name to declare in the SDT" );
-    msg_Raw( NULL, "  -o --rtp-output <SSRC IP>" );
-    msg_Raw( NULL, "  -t --ttl <ttl>        TTL of the output stream" );
-    msg_Raw( NULL, "  -T --unique-ts-id     generate random unique TS ID for each output" );
-    msg_Raw( NULL, "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
-    msg_Raw( NULL, "  -z --any-type         pass through all ESs from the PMT, of any type" );
-    msg_Raw( NULL, "  -0 --pidmap <pmt_pid,audio_pid,video_pid,spu_pid>");
+    Raw( "Output:" );
+    Raw( "  -c --config-file <config file>" );
+    Raw( "  -C --dvb-compliance   pass through or build the mandatory DVB tables" );
+    Raw( "  -d --duplicate        duplicate all received packets to a given destination" );
+    Raw( "  -3 --passthrough      duplicate all received packets to stdout" );
+    Raw( "  -W --emm-passthrough  pass through EMM data (CA system data)" );
+    Raw( "  -Y --ecm-passthrough  pass through ECM data (CA program data)" );
+    Raw( "  -e --epg-passthrough  pass through DVB EIT schedule tables" );
+    Raw( "  -E --retention        maximum retention allowed between input and output (default: 40 ms)" );
+    Raw( "  -L --latency          maximum latency allowed between input and output (default: 100 ms)" );
+    Raw( "  -M --network-name     DVB network name to declare in the NIT" );
+    Raw( "  -N --network-id       DVB network ID to declare in the NIT" );
+    Raw( "  -B --provider-name    Service provider name to declare in the SDT" );
+    Raw( "  -o --rtp-output <SSRC IP>" );
+    Raw( "  -t --ttl <ttl>        TTL of the output stream" );
+    Raw( "  -T --unique-ts-id     generate random unique TS ID for each output" );
+    Raw( "  -U --udp              use raw UDP rather than RTP (required by some IPTV set top boxes)" );
+    Raw( "  -z --any-type         pass through all ESs from the PMT, of any type" );
+    Raw( "  -0 --pidmap <pmt_pid,audio_pid,video_pid,spu_pid>");
 
-    msg_Raw( NULL, "Misc:" );
-    msg_Raw( NULL, "  -h --help             display this full help" );
-    msg_Raw( NULL, "  -i --priority <RT priority>" );
-    msg_Raw( NULL, "  -j --system-charset   character set used for printing messages (default UTF-8//IGNORE)" );
-    msg_Raw( NULL, "  -J --dvb-charset      character set used in output DVB tables (default UTF-8//IGNORE)" );
-    msg_Raw( NULL, "  -l --logger           use syslog for logging messages instead of stderr" );
-    msg_Raw( NULL, "  -g --logger-ident     program name that will be used in syslog messages" );
-    msg_Raw( NULL, "  -x --print            print interesting events on stdout in a given format" );
-    msg_Raw( NULL, "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
-    msg_Raw( NULL, "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
-    msg_Raw( NULL, "  -6 --print-period     periodicity at which we print bitrate and errors (in ms)" );
-    msg_Raw( NULL, "  -7 --es-timeout       time of inactivy before which a PID is reported down (in ms)" );
-    msg_Raw( NULL, "  -4 --udp lock-timeout time of inactivy before which a UDP stream is reported down (in ms)" );
-    msg_Raw( NULL, "  -r --remote-socket <remote socket>" );
-    msg_Raw( NULL, "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
-    msg_Raw( NULL, "  -V --version          only display the version" );
+    Raw( "Misc:" );
+    Raw( "  -h --help             display this full help" );
+    Raw( "  -i --priority <RT priority>" );
+    Raw( "  -j --system-charset   character set used for printing messages (default UTF-8//IGNORE)" );
+    Raw( "  -J --dvb-charset      character set used in output DVB tables (default UTF-8//IGNORE)" );
+    Raw( "  -l --logger           use syslog for logging messages instead of stderr" );
+    Raw( "  -g --logger-ident     program name that will be used in syslog messages" );
+    Raw( "  -x --print            print interesting events on stdout in a given format" );
+    Raw( "  -q --quiet            be quiet (less verbosity, repeat or use number for even quieter)" );
+    Raw( "  -Q --quit-timeout     when locked, quit after this delay (in ms), or after the first lock timeout" );
+    Raw( "  -6 --print-period     periodicity at which we print bitrate and errors (in ms)" );
+    Raw( "  -7 --es-timeout       time of inactivy before which a PID is reported down (in ms)" );
+    Raw( "  -4 --udp lock-timeout time of inactivy before which a UDP stream is reported down (in ms)" );
+    Raw( "  -r --remote-socket <remote socket>" );
+    Raw( "  -Z --mrtg-file <file> Log input packets and errors into mrtg-file" );
+    Raw( "  -V --version          only display the version" );
     exit(1);
 }
 
@@ -908,7 +907,7 @@ int main( int i_argc, char **pp_argv )
             pf_SetFilter = dvb_SetFilter;
             pf_UnsetFilter = dvb_UnsetFilter;
 #else
-            msg_Err( NULL, "DVBlast is compiled without DVB support.");
+            Err( "DVBlast is compiled without DVB support." );
             exit(1);
 #endif
             break;
@@ -974,7 +973,7 @@ int main( int i_argc, char **pp_argv )
             } else if ( streq( psz_mis_pls_mode, "COMBO" ) ) {
                 i_mis_pls_mode = 2;
             } else {
-                msg_Err(NULL, "Invalid --multistream-id-pls-mode '%s', valid options are: ROOT GOLD COMBO", optarg);
+                Err( "Invalid --multistream-id-pls-mode '%s', valid options are: ROOT GOLD COMBO", optarg );
                 exit(1);
             }
             break;
@@ -982,7 +981,7 @@ int main( int i_argc, char **pp_argv )
         case 0x100002: // --multistream-id-pls-code
             i_mis_pls_code = strtol( optarg, NULL, 0 );
             if ( i_mis_pls_code < 0 || i_mis_pls_code > 262143 ) {
-                msg_Err(NULL, "ERROR: Invalid --multistream-id-pls-code '%s', valid options are: 0-262143", optarg);
+                Err( "ERROR: Invalid --multistream-id-pls-code '%s', valid options are: 0-262143", optarg );
                 exit(1);
             }
             break;
@@ -990,7 +989,7 @@ int main( int i_argc, char **pp_argv )
         case 0x100003: // --multistream-id-is-id
             i_mis_is_id = strtol( optarg, NULL, 0 );
             if ( i_mis_is_id < 0 || i_mis_is_id > 255 ) {
-                msg_Err(NULL, "ERROR: Invalid --multistream-id-is-id '%s', valid options are: 0-255", optarg);
+                Err( "ERROR: Invalid --multistream-id-is-id '%s', valid options are: 0-255", optarg );
                 exit(1);
             }
             break;
@@ -1067,7 +1066,7 @@ int main( int i_argc, char **pp_argv )
                 pf_SetFilter = asi_deltacast_SetFilter;
                 pf_UnsetFilter = asi_deltacast_UnsetFilter;
 #else
-                msg_Err( NULL, "DVBlast is compiled without Deltacast ASI support.");
+                Err( "DVBlast is compiled without Deltacast ASI support." );
                 exit(1);
 #endif
             }
@@ -1080,7 +1079,7 @@ int main( int i_argc, char **pp_argv )
                 pf_UnsetFilter = asi_UnsetFilter;
             }
 #else
-            msg_Err( NULL, "DVBlast is compiled without ASI support.");
+            Err( "DVBlast is compiled without ASI support." );
             exit(1);
 #endif
             break;
@@ -1100,7 +1099,7 @@ int main( int i_argc, char **pp_argv )
         case 'Y':
             b_enable_ecm = true;
             break;
- 
+
         case 'e':
             b_epg_global = true;
             break;
@@ -1146,7 +1145,7 @@ int main( int i_argc, char **pp_argv )
             else
             {
                 b_print_enabled = false;
-                msg_Warn( NULL, "unrecognized print type %s", optarg );
+                Warn( "unrecognized print type %s", optarg );
             }
             break;
 
@@ -1189,7 +1188,7 @@ int main( int i_argc, char **pp_argv )
                     break;
                 i_newpid = strtoul(tok, NULL, 0);
                 if ( !i_newpid ) {
-                     msg_Err( NULL, "Invalid pidmap string" );
+                     Err( "Invalid pidmap string" );
                      usage();
                 }
                 pi_newpids[i] = i_newpid;
@@ -1228,9 +1227,9 @@ int main( int i_argc, char **pp_argv )
     if ( i_verbose )
         DisplayVersion();
 
-    msg_Warn( NULL, "restarting" );
+    Warn( "restarting" );
 
-    switch (i_print_type) 
+    switch (i_print_type)
     {
         case PRINT_XML:
             fprintf(print_fh, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
@@ -1242,19 +1241,19 @@ int main( int i_argc, char **pp_argv )
 
     if ( b_udp_global )
     {
-        msg_Warn( NULL, "raw UDP output is deprecated.  Please consider using RTP." );
-        msg_Warn( NULL, "for DVB-IP compliance you should use RTP." );
+        Warn( "raw UDP output is deprecated.  Please consider using RTP." );
+        Warn( "for DVB-IP compliance you should use RTP." );
     }
 
     if ( b_epg_global && !b_dvb_global )
     {
-        msg_Dbg( NULL, "turning on DVB compliance, required by EPG information" );
+        Dbg( "turning on DVB compliance, required by EPG information" );
         b_dvb_global = true;
     }
 
     if ((event_loop = ev_default_loop(0)) == NULL)
     {
-        msg_Err( NULL, "unable to initialize libev" );
+        Err( "unable to initialize libev" );
         exit(EXIT_FAILURE);
     }
 
@@ -1265,7 +1264,7 @@ int main( int i_argc, char **pp_argv )
 
         config_Defaults( &config );
         if ( !config_ParseHost( &config, psz_dup_config ) )
-            msg_Err( NULL, "Invalid target address for -d switch" );
+            Err( "Invalid target address for -d switch" );
         else
         {
             output_Init( &output_dup, &config );
@@ -1288,8 +1287,8 @@ int main( int i_argc, char **pp_argv )
     if ( i_mis_pls_mode || i_mis_pls_code || i_mis_is_id )
     {
         i_mis = calc_multistream_id( i_mis_pls_mode, i_mis_pls_code, i_mis_is_id );
-        msg_Info( NULL, "Calculating multistream-id using pls-mode: %s (%d) pls-code: %d is-id: %d. Resulting multistream-id: %d (0x%x)",
-            psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
+        Info( "Calculating multistream-id using pls-mode: %s (%d) pls-code: %d is-id: %d. Resulting multistream-id: %d (0x%x)",
+              psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
     }
     else if ( i_mis )
     {
@@ -1301,8 +1300,8 @@ int main( int i_argc, char **pp_argv )
             i_mis_pls_mode == 1 ? "GOLD" :
             i_mis_pls_mode == 2 ? "COMBO" : "UNKNOWN";
 
-        msg_Info( NULL, "Calculated multistream pls-mode: %s (%d) pls-code: %d is-id: %d from multistream-id: %d (0x%x)",
-            psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
+        Info( "Calculated multistream pls-mode: %s (%d) pls-code: %d is-id: %d from multistream-id: %d (0x%x)",
+              psz_mis_pls_mode, i_mis_pls_mode, i_mis_pls_code, i_mis_is_id, i_mis, i_mis );
     }
 
     demux_Open();
@@ -1317,8 +1316,7 @@ int main( int i_argc, char **pp_argv )
         if ( (i_error = pthread_setschedparam( pthread_self(), SCHED_RR,
                                                &param )) )
         {
-            msg_Warn( NULL, "couldn't set thread priority: %s",
-                      strerror(i_error) );
+            Warn( "couldn't set thread priority: %s", strerror(i_error) );
         }
     }
 

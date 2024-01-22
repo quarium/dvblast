@@ -280,7 +280,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     }
     if ( p_output->i_handle < 0 )
     {
-        msg_Err( NULL, "couldn't create socket (%s)", strerror(errno) );
+        Err( "couldn't create socket (%s)", strerror(errno) );
         p_output->config.i_config &= ~OUTPUT_VALID;
         return -errno;
     }
@@ -290,7 +290,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     {
         if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
                    i_sockaddr_len ) < 0 )
-            msg_Warn( NULL, "couldn't bind socket (%s)", strerror(errno) );
+            Warn( "couldn't bind socket (%s)", strerror(errno) );
 
         if ( p_config->i_family == AF_INET )
         {
@@ -329,14 +329,13 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     }
 
     if (ret == -1)
-        msg_Warn( NULL, "couldn't join multicast address (%s)",
-                  strerror(errno) );
+        Warn( "couldn't join multicast address (%s)", strerror(errno) );
 
     if ( connect( p_output->i_handle,
                   (struct sockaddr *)&p_output->config.connect_addr,
                   i_sockaddr_len ) < 0 )
     {
-        msg_Err( NULL, "couldn't connect socket (%s)", strerror(errno) );
+        Err( "couldn't connect socket (%s)", strerror(errno) );
         close( p_output->i_handle );
         p_output->config.i_config &= ~OUTPUT_VALID;
         return -errno;
@@ -460,8 +459,8 @@ static void output_Flush( output_t *p_output )
 
     if ( writev( p_output->i_handle, p_iov, i_iov ) < 0 )
     {
-        msg_Err( NULL, "couldn't writev to %s (%s)",
-                 p_output->config.psz_displayname, strerror(errno) );
+        Err( "couldn't writev to %s (%s)",
+             p_output->config.psz_displayname, strerror(errno) );
     }
     /* Update the wallclock because writev() can take some time. */
     i_wallclock = mdate();
@@ -669,7 +668,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
     }
 
     if (ret == -1)
-        msg_Warn( NULL, "couldn't change socket (%s)", strerror(errno) );
+        Warn( "couldn't change socket (%s)", strerror(errno) );
 
     if ( p_output->config.i_mtu != p_config->i_mtu
           || ((p_output->config.i_config ^ p_config->i_config) & OUTPUT_UDP) )
@@ -710,7 +709,7 @@ void outputs_Close( int i_num_outputs )
 
         if ( p_output->config.i_config & OUTPUT_VALID )
         {
-            msg_Dbg( NULL, "removing %s", p_output->config.psz_displayname );
+            Dbg( "removing %s", p_output->config.psz_displayname );
 
             if ( p_output->p_packets )
                 output_Flush( p_output );

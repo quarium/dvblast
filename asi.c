@@ -140,21 +140,19 @@ void asi_Open( void )
     /* No timestamp - we wouldn't know what to do with them */
     if ( WriteULSysfs( ASI_TIMESTAMPS_FILE, i_asi_adapter, 0 ) < 0 )
     {
-        msg_Err( NULL, "couldn't write file " ASI_TIMESTAMPS_FILE,
-                 i_asi_adapter );
+        Err( "couldn't write file " ASI_TIMESTAMPS_FILE, i_asi_adapter );
         exit(EXIT_FAILURE);
     }
 
     if ( (i_bufsize = ReadULSysfs( ASI_BUFSIZE_FILE, i_asi_adapter )) < 0 )
     {
-        msg_Err( NULL, "couldn't read file " ASI_BUFSIZE_FILE, i_asi_adapter );
+        Err( "couldn't read file " ASI_BUFSIZE_FILE, i_asi_adapter );
         exit(EXIT_FAILURE);
     }
 
     if ( i_bufsize % TS_SIZE )
     {
-        msg_Err( NULL, ASI_BUFSIZE_FILE " must be a multiple of 188",
-                 i_asi_adapter );
+        Err( ASI_BUFSIZE_FILE " must be a multiple of 188", i_asi_adapter );
         exit(EXIT_FAILURE);
     }
 
@@ -162,8 +160,8 @@ void asi_Open( void )
     psz_dev[sizeof(psz_dev) - 1] = '\0';
     if ( (i_handle = open( psz_dev, O_RDONLY, 0 )) < 0 )
     {
-        msg_Err( NULL, "couldn't open device " ASI_DEVICE " (%s)",
-                 i_asi_adapter, strerror(errno) );
+        Err( "couldn't open device " ASI_DEVICE " (%s)",
+             i_asi_adapter, strerror(errno) );
         exit(EXIT_FAILURE);
     }
 
@@ -174,7 +172,7 @@ void asi_Open( void )
 #endif
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
     {
-        msg_Warn( NULL, "couldn't filter padding" );
+        Warn( "couldn't filter padding" );
     }
 
     fsync( i_handle );
@@ -196,17 +194,17 @@ static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     if ( ioctl(i_handle, ASI_IOC_RXGETEVENTS, &i_val) == 0 )
     {
         if ( i_val & ASI_EVENT_RX_BUFFER )
-            msg_Warn( NULL, "driver receive buffer queue overrun" );
+            Warn( "driver receive buffer queue overrun" );
         if ( i_val & ASI_EVENT_RX_FIFO )
-            msg_Warn( NULL, "onboard receive FIFO overrun" );
+            Warn( "onboard receive FIFO overrun" );
         if ( i_val & ASI_EVENT_RX_CARRIER )
-            msg_Warn( NULL, "carrier status change" );
+            Warn( "carrier status change" );
         if ( i_val & ASI_EVENT_RX_LOS )
-            msg_Warn( NULL, "loss of packet synchronization" );
+            Warn( "loss of packet synchronization" );
         if ( i_val & ASI_EVENT_RX_AOS )
-            msg_Warn( NULL, "acquisition of packet synchronization" );
+            Warn( "acquisition of packet synchronization" );
         if ( i_val & ASI_EVENT_RX_DATA )
-            msg_Warn( NULL, "receive data status change" );
+            Warn( "receive data status change" );
     }
 
     struct iovec p_iov[i_bufsize / TS_SIZE];
@@ -223,8 +221,8 @@ static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 
     if ( (i_len = readv(i_handle, p_iov, i_bufsize / TS_SIZE)) < 0 )
     {
-        msg_Err( NULL, "couldn't read from device " ASI_DEVICE " (%s)",
-                 i_asi_adapter, strerror(errno) );
+        Err( "couldn't read from device " ASI_DEVICE " (%s)",
+             i_asi_adapter, strerror(errno) );
         i_len = 0;
     }
     i_len /= TS_SIZE;
@@ -233,7 +231,7 @@ static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     {
         if ( !b_sync )
         {
-            msg_Info( NULL, "frontend has acquired lock" );
+            Info( "frontend has acquired lock" );
             switch (i_print_type) {
             case PRINT_XML:
                 fprintf(print_fh, "<STATUS type=\"lock\" status=\"1\"/>\n");
@@ -259,7 +257,7 @@ static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
     }
 
     if ( *pp_current )
-        msg_Dbg( NULL, "partial buffer received" );
+        Dbg( "partial buffer received" );
     block_DeleteChain( *pp_current );
     *pp_current = NULL;
 
@@ -268,7 +266,7 @@ static void asi_Read(struct ev_loop *loop, struct ev_io *w, int revents)
 
 static void asi_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
 {
-    msg_Warn( NULL, "frontend has lost lock" );
+    Warn( "frontend has lost lock" );
     ev_timer_stop(loop, w);
 
     switch (i_print_type) {
@@ -291,7 +289,7 @@ int asi_SetFilter( uint16_t i_pid )
 #ifdef USE_HARDWARE_FILTERING
     p_pid_filter[ i_pid / 8 ] |= (0x01 << (i_pid % 8));
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
-        msg_Warn( NULL, "couldn't add filter on PID %u", i_pid );
+        Warn( "couldn't add filter on PID %u", i_pid );
 
     return 1;
 #else
@@ -307,7 +305,7 @@ void asi_UnsetFilter( int i_fd, uint16_t i_pid )
 #ifdef USE_HARDWARE_FILTERING
     p_pid_filter[ i_pid / 8 ] &= ~(0x01 << (i_pid % 8));
     if ( ioctl( i_handle, ASI_IOC_RXSETPF, p_pid_filter ) < 0 )
-        msg_Warn( NULL, "couldn't remove filter on PID %u", i_pid );
+        Warn( "couldn't remove filter on PID %u", i_pid );
 #endif
 }
 
@@ -316,7 +314,7 @@ void asi_UnsetFilter( int i_fd, uint16_t i_pid )
  *****************************************************************************/
 void asi_Reset( void )
 {
-    msg_Warn( NULL, "asi_Reset() do nothing" );
+    Warn( "asi_Reset() do nothing" );
 }
 
 #endif
