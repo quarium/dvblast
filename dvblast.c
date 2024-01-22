@@ -55,11 +55,7 @@
  * Local declarations
  *****************************************************************************/
 struct ev_loop *event_loop;
-output_t **pp_outputs = NULL;
-int i_nb_outputs = 0;
-output_t output_dup;
-bool b_passthrough = false;
-static const char *psz_conf_file = NULL;
+output_t *output_dup = NULL;
 char *psz_srv_socket = NULL;
 static int i_priority = -1;
 int i_adapter = 0;
@@ -113,20 +109,6 @@ char *psz_syslog_ident = NULL;
 bool b_enable_emm = false;
 bool b_enable_ecm = false;
 
-uint8_t pi_ssrc_global[4] = { 0, 0, 0, 0 };
-static bool b_udp_global = false;
-static bool b_dvb_global = false;
-static bool b_epg_global = false;
-static mtime_t i_latency_global = DEFAULT_OUTPUT_LATENCY;
-static mtime_t i_retention_global = DEFAULT_MAX_RETENTION;
-static int i_ttl_global = 64;
-
-static const char *psz_dvb_charset = "UTF-8//IGNORE";
-static iconv_t conf_iconv = (iconv_t)-1;
-static uint16_t i_network_id = 0xffff;
-static dvb_string_t network_name;
-static dvb_string_t provider_name;
-
 /* TPS Input log filename */
 char * psz_mrtg_file = NULL;
 
@@ -138,432 +120,6 @@ void (*pf_Open)( void ) = NULL;
 void (*pf_Reset)( void ) = NULL;
 int (*pf_SetFilter)( uint16_t i_pid ) = NULL;
 void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid ) = NULL;
-
-/*****************************************************************************
- * Configuration files
- *****************************************************************************/
-void config_Init( output_config_t *p_config )
-{
-    memset( p_config, 0, sizeof(output_config_t) );
-
-    p_config->psz_displayname = NULL;
-    p_config->i_network_id = i_network_id;
-    dvb_string_init(&p_config->network_name);
-    dvb_string_init(&p_config->service_name);
-    dvb_string_init(&p_config->provider_name);
-    p_config->psz_srcaddr = NULL;
-
-    p_config->i_family = AF_UNSPEC;
-    p_config->connect_addr.ss_family = AF_UNSPEC;
-    p_config->bind_addr.ss_family = AF_UNSPEC;
-    p_config->i_if_index_v6 = -1;
-    p_config->i_srcport = 0;
-
-    p_config->pi_pids = NULL;
-    p_config->b_passthrough = false;
-    p_config->b_do_remap = false;
-    unsigned int i;
-    for ( i = 0; i < N_MAP_PIDS; i++ ) {
-        p_config->pi_confpids[i]  = UNUSED_PID;
-    }
-}
-
-void config_Free( output_config_t *p_config )
-{
-    free( p_config->psz_displayname );
-    dvb_string_clean( &p_config->network_name );
-    dvb_string_clean( &p_config->service_name );
-    dvb_string_clean( &p_config->provider_name );
-    free( p_config->pi_pids );
-    free( p_config->psz_srcaddr );
-}
-
-static void config_Defaults( output_config_t *p_config )
-{
-    config_Init( p_config );
-
-    p_config->i_config = (b_udp_global ? OUTPUT_UDP : 0) |
-                         (b_dvb_global ? OUTPUT_DVB : 0) |
-                         (b_epg_global ? OUTPUT_EPG : 0);
-    p_config->i_max_retention = i_retention_global;
-    p_config->i_output_latency = i_latency_global;
-    p_config->i_tsid = -1;
-    p_config->i_ttl = i_ttl_global;
-    memcpy( p_config->pi_ssrc, pi_ssrc_global, 4 * sizeof(uint8_t) );
-    dvb_string_copy(&p_config->network_name, &network_name);
-    dvb_string_copy(&p_config->provider_name, &provider_name);
-}
-
-char *config_stropt( const char *psz_string )
-{
-    char *ret, *tmp;
-    if ( !psz_string || strlen( psz_string ) == 0 )
-        return NULL;
-    ret = tmp = strdup( psz_string );
-    while (*tmp) {
-        if (*tmp == '_')
-            *tmp = ' ';
-        if (*tmp == '/') {
-            *tmp = '\0';
-            break;
-        }
-        tmp++;
-    }
-    return ret;
-}
-
-static uint8_t *config_striconv( const char *psz_string,
-                                 const char *psz_charset, size_t *pi_length )
-{
-    char *psz_input = config_stropt(psz_string);
-    *pi_length = strlen(psz_input);
-
-    /* do not convert ASCII strings */
-    const char *c = psz_string;
-    while (*c)
-        if (!isascii(*c++))
-            break;
-    if (!*c)
-        return (uint8_t *)psz_input;
-
-    if ( !strcasecmp( psz_native_charset, psz_charset ) )
-        return (uint8_t *)psz_input;
-
-#ifdef HAVE_ICONV
-    if ( conf_iconv == (iconv_t)-1 )
-    {
-        conf_iconv = iconv_open( psz_charset, psz_native_charset );
-        if ( conf_iconv == (iconv_t)-1 )
-            return (uint8_t *)psz_input;
-    }
-
-    char *psz_tmp = psz_input;
-    size_t i_input = *pi_length;
-    size_t i_output = i_input * 6;
-    size_t i_available = i_output;
-    char *p_output = malloc( i_output );
-    char *p = p_output;
-    if ( iconv( conf_iconv, &psz_tmp, &i_input, &p, &i_available ) == (size_t)-1 )
-    {
-        free( p_output );
-
-        return (uint8_t *)psz_input;
-    }
-
-    free(psz_input);
-    *pi_length = i_output - i_available;
-    return (uint8_t *)p_output;
-#else
-    Warn( "unable to convert from %s to %s (iconv is not available)",
-          psz_native_charset, psz_charset );
-    return (uint8_t *)psz_input;
-#endif
-}
-
-static void config_strdvb( dvb_string_t *p_dvb_string, const char *psz_string,
-                           const char *psz_charset )
-{
-    if (psz_string == NULL)
-    {
-        dvb_string_init(p_dvb_string);
-        return;
-    }
-    dvb_string_clean(p_dvb_string);
-
-    size_t i_iconv;
-    uint8_t *p_iconv = config_striconv(psz_string, psz_charset, &i_iconv);
-    p_dvb_string->p = dvb_string_set(p_iconv, i_iconv, psz_charset,
-                                     &p_dvb_string->i);
-    free(p_iconv);
-}
-
-static bool config_ParseHost( output_config_t *p_config, char *psz_string )
-{
-    struct addrinfo *p_ai;
-    int i_mtu;
-
-    p_config->psz_displayname = strdup( psz_string );
-
-    p_ai = ParseNodeService( psz_string, &psz_string, DEFAULT_PORT );
-    if ( p_ai == NULL ) return false;
-    memcpy( &p_config->connect_addr, p_ai->ai_addr, p_ai->ai_addrlen );
-    freeaddrinfo( p_ai );
-
-    p_config->i_family = p_config->connect_addr.ss_family;
-    if ( p_config->i_family == AF_UNSPEC ) return false;
-
-    if ( psz_string == NULL || !*psz_string ) goto end;
-
-    if ( *psz_string == '@' )
-    {
-        psz_string++;
-        p_ai = ParseNodeService( psz_string, &psz_string, 0 );
-        if ( p_ai == NULL || p_ai->ai_family != p_config->i_family )
-            Warn( "invalid bind address" );
-        else
-            memcpy( &p_config->bind_addr, p_ai->ai_addr, p_ai->ai_addrlen );
-        freeaddrinfo( p_ai );
-    }
-
-    const char *psz_charset = psz_dvb_charset;
-    const char *psz_network_name = NULL;
-    const char *psz_service_name = NULL;
-    const char *psz_provider_name = NULL;
-
-    while ( (psz_string = strchr( psz_string, '/' )) != NULL )
-    {
-        *psz_string++ = '\0';
-
-#define IS_OPTION( option ) (!strncasecmp( psz_string, option, strlen(option) ))
-#define ARG_OPTION( option ) (psz_string + strlen(option))
-
-        if ( IS_OPTION("udp") )
-            p_config->i_config |= OUTPUT_UDP;
-        else if ( IS_OPTION("dvb") )
-            p_config->i_config |= OUTPUT_DVB;
-        else if ( IS_OPTION("epg") )
-            p_config->i_config |= OUTPUT_EPG;
-        else if ( IS_OPTION("tsid=") )
-            p_config->i_tsid = strtol( ARG_OPTION("tsid="), NULL, 0 );
-        else if ( IS_OPTION("retention=") )
-            p_config->i_max_retention = strtoll( ARG_OPTION("retention="),
-                                                 NULL, 0 ) * 1000;
-        else if ( IS_OPTION("latency=") )
-            p_config->i_output_latency = strtoll( ARG_OPTION("latency="),
-                                                  NULL, 0 ) * 1000;
-        else if ( IS_OPTION("ttl=") )
-            p_config->i_ttl = strtol( ARG_OPTION("ttl="), NULL, 0 );
-        else if ( IS_OPTION("tos=") )
-            p_config->i_tos = strtol( ARG_OPTION("tos="), NULL, 0 );
-        else if ( IS_OPTION("mtu=") )
-            p_config->i_mtu = strtol( ARG_OPTION("mtu="), NULL, 0 );
-        else if ( IS_OPTION("ifindex=") )
-            p_config->i_if_index_v6 = strtol( ARG_OPTION("ifindex="), NULL, 0 );
-        else if ( IS_OPTION("networkid=") )
-            p_config->i_network_id = strtol( ARG_OPTION("networkid="), NULL, 0 );
-        else if ( IS_OPTION("onid=") )
-            p_config->i_onid = strtol( ARG_OPTION("onid="), NULL, 0 );
-        else if ( IS_OPTION("charset=")  )
-            psz_charset = ARG_OPTION("charset=");
-        else if ( IS_OPTION("networkname=")  )
-            psz_network_name = ARG_OPTION("networkname=");
-        else if ( IS_OPTION("srvname=")  )
-            psz_service_name = ARG_OPTION("srvname=");
-        else if ( IS_OPTION("srvprovider=") )
-            psz_provider_name = ARG_OPTION("srvprovider=");
-        else if ( IS_OPTION("srcaddr=") )
-        {
-            if ( p_config->i_family != AF_INET ) {
-                Err( "RAW sockets currently implemented for ipv4 only" );
-                return false;
-            }
-            free( p_config->psz_srcaddr );
-            p_config->psz_srcaddr = config_stropt( ARG_OPTION("srcaddr=") );
-            p_config->i_config |= OUTPUT_RAW;
-        }
-        else if ( IS_OPTION("srcport=") )
-            p_config->i_srcport = strtol( ARG_OPTION("srcport="), NULL, 0 );
-        else if ( IS_OPTION("ssrc=") )
-        {
-            in_addr_t i_addr = inet_addr( ARG_OPTION("ssrc=") );
-            memcpy( p_config->pi_ssrc, &i_addr, 4 * sizeof(uint8_t) );
-        }
-        else if ( IS_OPTION("pidmap=") )
-        {
-            char *str1;
-            char *saveptr = NULL;
-            char *tok = NULL;
-            int i, i_newpid;
-            for (i = 0, str1 = config_stropt( (ARG_OPTION("pidmap="))); i < N_MAP_PIDS; i++, str1 = NULL)
-            {
-                tok = strtok_r(str1, ",", &saveptr);
-                if ( !tok )
-                    break;
-                i_newpid = strtoul(tok, NULL, 0);
-                p_config->pi_confpids[i] = i_newpid;
-            }
-            p_config->b_do_remap = true;
-        }
-        else if ( IS_OPTION("newsid=") )
-            p_config->i_new_sid = strtol( ARG_OPTION("newsid="), NULL, 0 );
-        else
-            Warn( "unrecognized option %s", psz_string );
-
-#undef IS_OPTION
-#undef ARG_OPTION
-    }
-
-    if (psz_network_name != NULL)
-        config_strdvb( &p_config->network_name, psz_network_name, psz_charset );
-    if (psz_service_name != NULL)
-        config_strdvb( &p_config->service_name, psz_service_name, psz_charset );
-    if (psz_provider_name != NULL)
-        config_strdvb( &p_config->provider_name, psz_provider_name,
-                       psz_charset );
-
-end:
-    i_mtu = p_config->i_family == AF_INET6 ? DEFAULT_IPV6_MTU :
-            DEFAULT_IPV4_MTU;
-
-    if ( !p_config->i_mtu )
-        p_config->i_mtu = i_mtu;
-    else if ( p_config->i_mtu < TS_SIZE + RTP_HEADER_SIZE )
-    {
-        Warn( "invalid MTU %d, setting %d", p_config->i_mtu, i_mtu );
-        p_config->i_mtu = i_mtu;
-    }
-
-    return true;
-}
-
-static void config_Print( output_config_t *p_config )
-{
-    if ( p_config->b_passthrough )
-    {
-        Dbg( "conf: %s config=0x%"PRIx64" sid=*",
-             p_config->psz_displayname, p_config->i_config );
-        return;
-    }
-
-    const char *psz_base = "conf: %s config=0x%"PRIx64" sid=%hu pids[%d]=";
-    size_t i_len = strlen(psz_base) + 6 * p_config->i_nb_pids + 1;
-    char psz_format[i_len];
-    int i, j = strlen(psz_base);
-
-    strcpy( psz_format, psz_base );
-    for ( i = 0; i < p_config->i_nb_pids; i++ )
-        j += sprintf( psz_format + j, "%u,", p_config->pi_pids[i] );
-    psz_format[j - 1] = '\0';
-
-    Dbg( psz_format, p_config->psz_displayname, p_config->i_config,
-         p_config->i_sid, p_config->i_nb_pids );
-}
-
-void config_ReadFile(void)
-{
-    FILE *p_file;
-    char psz_line[2048];
-    int i;
-
-    if ( psz_conf_file == NULL )
-    {
-        Err( "no config file" );
-        return;
-    }
-
-    if ( (p_file = fopen( psz_conf_file, "r" )) == NULL )
-    {
-        Err( "can't fopen config file %s", psz_conf_file );
-        return;
-    }
-
-    while ( fgets( psz_line, sizeof(psz_line), p_file ) != NULL )
-    {
-        output_config_t config;
-        output_t *p_output;
-        char *psz_token, *psz_parser;
-
-        psz_parser = strchr( psz_line, '#' );
-        if ( psz_parser != NULL )
-            *psz_parser-- = '\0';
-        while ( psz_parser >= psz_line && isblank( *psz_parser ) )
-            *psz_parser-- = '\0';
-        if ( psz_line[0] == '\0' )
-            continue;
-
-        config_Defaults( &config );
-
-        psz_token = strtok_r( psz_line, "\t\n ", &psz_parser );
-        if ( psz_token == NULL || !config_ParseHost( &config, psz_token ))
-        {
-            config_Free( &config );
-            continue;
-        }
-
-        psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
-        if ( psz_token == NULL )
-        {
-            config_Free( &config );
-            continue;
-        }
-        if( atoi( psz_token ) == 1 )
-            config.i_config |= OUTPUT_WATCH;
-        else
-            config.i_config &= ~OUTPUT_WATCH;
-
-        psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
-        if ( psz_token == NULL )
-        {
-            config_Free( &config );
-            continue;
-        }
-
-        if ( psz_token[0] == '*' )
-        {
-            config.b_passthrough = true;
-        }
-        else
-        {
-            config.i_sid = strtol(psz_token, NULL, 0);
-
-            psz_token = strtok_r( NULL, "\t\n ", &psz_parser );
-            if ( psz_token != NULL )
-            {
-                psz_parser = NULL;
-                for ( ; ; )
-                {
-                    psz_token = strtok_r( psz_token, ",", &psz_parser );
-                    if ( psz_token == NULL )
-                        break;
-                    config.pi_pids = realloc( config.pi_pids,
-                                     (config.i_nb_pids + 1) * sizeof(uint16_t) );
-                    config.pi_pids[config.i_nb_pids++] = strtol(psz_token, NULL, 0);
-                    psz_token = NULL;
-                }
-            }
-        }
-
-        config_Print( &config );
-
-        p_output = output_Find( &config );
-
-        if ( p_output == NULL )
-            p_output = output_Create( &config );
-
-        if ( p_output != NULL )
-        {
-            free( p_output->config.psz_displayname );
-            p_output->config.psz_displayname = strdup( config.psz_displayname );
-
-            config.i_config |= OUTPUT_VALID | OUTPUT_STILL_PRESENT;
-            output_Change( p_output, &config );
-            demux_Change( p_output, &config );
-        }
-
-        config_Free( &config );
-    }
-
-    fclose( p_file );
-
-    for ( i = 0; i < i_nb_outputs; i++ )
-    {
-        output_t *p_output = pp_outputs[i];
-        output_config_t config;
-
-        config_Init( &config );
-
-        if ( (p_output->config.i_config & OUTPUT_VALID) &&
-             !(p_output->config.i_config & OUTPUT_STILL_PRESENT) )
-        {
-            Dbg( "closing %s", p_output->config.psz_displayname );
-            demux_Change( p_output, &config );
-            output_Close( p_output );
-        }
-
-        p_output->config.i_config &= ~OUTPUT_STILL_PRESENT;
-        config_Free( &config );
-    }
-}
 
 /*****************************************************************************
  * Signal Handler
@@ -727,8 +283,6 @@ void usage()
 
 int main( int i_argc, char **pp_argv )
 {
-    const char *psz_network_name = "DVBlast - videolan.org";
-    const char *psz_provider_name = NULL;
     char *psz_dup_config = NULL;
     struct sched_param param;
     int i_error;
@@ -844,7 +398,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'c':
-            psz_conf_file = optarg;
+            config_set_conf_file( optarg );
             /*
              * When configuration file is used it is reasonable to assume that
              * services may be added/removed. If b_select_pmts is not set dvblast
@@ -858,7 +412,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 't':
-            i_ttl_global = strtol( optarg, NULL, 0 );
+            config_set_ttl( strtol( optarg, NULL, 0 ) );
             break;
 
         case 'o':
@@ -866,7 +420,7 @@ int main( int i_argc, char **pp_argv )
             struct in_addr maddr;
             if ( !inet_aton( optarg, &maddr ) )
                 usage();
-            memcpy( pi_ssrc_global, &maddr.s_addr, 4 * sizeof(uint8_t) );
+            config_set_ssrc( maddr.s_addr );
             break;
         }
 
@@ -1023,15 +577,15 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'U':
-            b_udp_global = true;
+            config_set_udp( true );
             break;
 
         case 'L':
-            i_latency_global = strtoll( optarg, NULL, 0 ) * 1000;
+            config_set_latency( strtoll( optarg, NULL, 0 ) * 1000 );
             break;
 
         case 'E':
-            i_retention_global = strtoll( optarg, NULL, 0 ) * 1000;
+            config_set_retention( strtoll( optarg, NULL, 0 ) * 1000 );
             break;
 
         case 'd':
@@ -1039,7 +593,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case '3':
-            b_passthrough = true;
+            config_set_passthrough( true );
             print_fh = stderr;
             break;
 
@@ -1089,7 +643,7 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'C':
-            b_dvb_global = true;
+            config_set_dvb( true );
             break;
 
         case 'W':
@@ -1101,15 +655,15 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'e':
-            b_epg_global = true;
+            config_set_epg( true );
             break;
 
         case 'M':
-            psz_network_name = optarg;
+            config_set_network_name( optarg );
             break;
 
         case 'N':
-            i_network_id = strtoul( optarg, NULL, 0 );
+            config_set_network_id( strtoul( optarg, NULL, 0 ) );
             break;
 
         case 'T':
@@ -1121,11 +675,11 @@ int main( int i_argc, char **pp_argv )
             break;
 
         case 'J':
-            psz_dvb_charset = optarg;
+            config_set_dvb_charset( optarg );
             break;
 
         case 'B':
-            psz_provider_name = optarg;
+            config_set_provider_name( optarg );
             break;
 
         case 'l':
@@ -1239,16 +793,16 @@ int main( int i_argc, char **pp_argv )
             break;
     }
 
-    if ( b_udp_global )
+    if ( config_get_udp() )
     {
         Warn( "raw UDP output is deprecated.  Please consider using RTP." );
         Warn( "for DVB-IP compliance you should use RTP." );
     }
 
-    if ( b_epg_global && !b_dvb_global )
+    if ( config_get_epg() && !config_get_dvb() )
     {
         Dbg( "turning on DVB compliance, required by EPG information" );
-        b_dvb_global = true;
+        config_set_dvb( true );
     }
 
     if ((event_loop = ev_default_loop(0)) == NULL)
@@ -1257,7 +811,6 @@ int main( int i_argc, char **pp_argv )
         exit(EXIT_FAILURE);
     }
 
-    memset( &output_dup, 0, sizeof(output_dup) );
     if ( psz_dup_config != NULL )
     {
         output_config_t config;
@@ -1267,15 +820,13 @@ int main( int i_argc, char **pp_argv )
             Err( "Invalid target address for -d switch" );
         else
         {
-            output_Init( &output_dup, &config );
-            output_Change( &output_dup, &config );
+            output_dup = output_Create( &config );
+            if ( output_dup )
+                output_Change( output_dup, &config );
         }
 
         config_Free( &config );
     }
-
-    config_strdvb( &network_name, psz_network_name, psz_dvb_charset );
-    config_strdvb( &provider_name, psz_provider_name, psz_dvb_charset );
 
     /* Set signal handlers */
     signal_watcher_init(&sigint_watcher, event_loop, sighandler, SIGINT);
@@ -1337,12 +888,11 @@ int main( int i_argc, char **pp_argv )
     ev_run(event_loop, 0);
 
     mrtgClose();
-    outputs_Close( i_nb_outputs );
+    if ( output_dup )
+        output_Close( output_dup );
+    outputs_Close();
     demux_Close();
-    dvb_string_clean( &network_name );
-    dvb_string_clean( &provider_name );
-    if ( conf_iconv != (iconv_t)-1 )
-        iconv_close( conf_iconv );
+    config_Close();
 
     switch (i_print_type)
     {

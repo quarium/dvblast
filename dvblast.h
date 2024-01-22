@@ -27,8 +27,12 @@
 #include <netinet/udp.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <stddef.h>
+
+#include <bitstream/dvb/si.h>
 
 #include "config.h"
+#include "list.h"
 
 #ifndef container_of
 #   define container_of(ptr, type, member) ({                               \
@@ -101,8 +105,6 @@ void LOG##_##NAME( void *priv, const char *psz_format, ... )                \
 /*****************************************************************************
  * Output configuration flags (for output_t -> i_config) - bit values
  * Bit  0 : Set for watch mode
- * Bit  1 : Set output still present
- * Bit  2 : Set if output is valid (replaces m_addr != 0 tests)
  * Bit  3 : Set for UDP, otherwise use RTP if a network stream
  * Bit  4 : Set for file / FIFO output, unset for network (future use)
  * Bit  5 : Set if DVB conformance tables are inserted
@@ -111,8 +113,6 @@ void LOG##_##NAME( void *priv, const char *psz_format, ... )                \
  *****************************************************************************/
 
 #define OUTPUT_WATCH         0x01
-#define OUTPUT_STILL_PRESENT 0x02
-#define OUTPUT_VALID         0x04
 #define OUTPUT_UDP           0x08
 #define OUTPUT_FILE          0x10
 #define OUTPUT_DVB           0x20
@@ -138,7 +138,92 @@ typedef struct dvb_string_t
     size_t i;
 } dvb_string_t;
 
-typedef struct output_config_t
+typedef enum es_type
+{
+    ES_TYPE_ANY = 'A',
+    ES_TYPE_UNKNOWN = 'u',
+    ES_TYPE_VIDEO = 'v',
+    ES_TYPE_AUDIO = 'a',
+    ES_TYPE_SUBTITLE = 's',
+    ES_TYPE_PRIVATE = 'p',
+    ES_TYPE_PAT = 1000,
+    ES_TYPE_CAT,
+    ES_TYPE_NIT,
+    ES_TYPE_SDT,
+    ES_TYPE_EIT,
+    ES_TYPE_RST,
+    ES_TYPE_TDT,
+    ES_TYPE_PMT,
+    ES_TYPE_EMM,
+    ES_TYPE_ECM
+} es_type_t;
+
+typedef enum config_type
+{
+    OUTPUT_CONFIG_TYPE_STATIC = 's',
+    OUTPUT_CONFIG_TYPE_COUNT = 'c',
+    OUTPUT_CONFIG_TYPE_ANY = '+',
+    OUTPUT_CONFIG_TYPE_ALL = '*',
+} config_type_t;
+
+typedef struct config_pid
+{
+    link_t link;
+    config_type_t type;
+    es_type_t es_type;
+    char lang[4];
+    unsigned value;
+    uint16_t new_pid; /* 0 for same */
+} config_pid_t;
+
+LINK_OF(config_pid, link);
+config_pid_t *config_pid_new( void );
+bool config_pid_cmp( const config_pid_t *, const config_pid_t * );
+void config_pid_free( config_pid_t * );
+
+typedef struct config_pid_list
+{
+    list_t list;
+} config_pid_list_t;
+
+LIST_OF(config_pid_list, list, config_pid, link);
+#define config_pid_list_each(L, I)  LIST_EACH(config_pid_list_next, L, I)
+#define config_pid_list_flush(L, I) LIST_FLUSH(config_pid_list_pop, L, I)
+#define config_pid_list_clean(L) \
+    LIST_CLEAN(config_pid_list_pop, config_pid_free, L)
+
+typedef struct config_sid
+{
+    link_t link;
+    config_pid_list_t pids;
+    config_type_t type;
+    unsigned value; /* 0 if raw mode */
+    uint16_t new_sid; /* 0 for same */
+    uint16_t pmt_pid; /* 0 for same */
+    dvb_string_t new_name;
+    dvb_string_t new_provider;
+    char *name;
+    char *provider;
+} config_sid_t;
+
+LINK_OF(config_sid, link);
+
+config_sid_t *config_sid_new( void );
+bool config_sid_cmp(const config_sid_t *, const config_sid_t * );
+void config_sid_free( config_sid_t * );
+
+typedef struct config_sid_list
+{
+    list_t list;
+} config_sid_list_t;
+
+LIST_OF(config_sid_list, list, config_sid, link);
+#define config_sid_list_each(L, I)  LIST_EACH(config_sid_list_next, L, I)
+#define config_sid_list_flush(L)    LIST_FLUSH(config_sid_list_pop, L)
+#define config_sid_list_clean(L) \
+    LIST_CLEAN(config_sid_list_pop, config_sid_free, L)
+
+typedef struct output_config
 {
     /* identity */
     int i_family;
@@ -153,9 +238,7 @@ typedef struct output_config_t
     /* output config */
     uint16_t i_network_id;
     dvb_string_t network_name;
-    dvb_string_t service_name;
-    dvb_string_t provider_name;
-    uint8_t pi_ssrc[4];
+    in_addr_t ssrc;
     mtime_t i_output_latency, i_max_retention;
     int i_ttl;
     uint8_t i_tos;
@@ -165,20 +248,20 @@ typedef struct output_config_t
 
     /* demux config */
     int i_tsid;
-    uint16_t i_sid; /* 0 if raw mode */
-    uint16_t *pi_pids;
-    int i_nb_pids;
-    uint16_t i_new_sid;
+    config_sid_list_t sids;
+    config_pid_list_t pids;
     uint16_t i_onid;
-    bool b_passthrough;
 
     /* for pidmap from config file */
     bool b_do_remap;
     uint16_t pi_confpids[N_MAP_PIDS];
 } output_config_t;
 
-typedef struct output_t
+typedef struct output_sid_list { list_t list; } output_sid_list_t;
+
+typedef struct output
 {
+    link_t link;
     output_config_t config;
 
     /* output */
@@ -193,8 +276,6 @@ typedef struct output_t
     mtime_t i_last_error;
     uint8_t *p_pat_section;
     uint8_t i_pat_version, i_pat_cc;
-    uint8_t *p_pmt_section;
-    uint8_t i_pmt_version, i_pmt_cc;
     uint8_t *p_nit_section;
     uint8_t i_nit_version, i_nit_cc;
     uint8_t *p_sdt_section;
@@ -202,8 +283,8 @@ typedef struct output_t
     block_t *p_eit_ts_buffer;
     uint8_t i_eit_ts_buffer_offset, i_eit_cc;
     uint16_t i_tsid;
-    /* incomplete PID (only PCR packets) */
-    uint16_t i_pcr_pid;
+    output_sid_list_t sids;
+
     // Arrays used for mapping pids.
     // newpids is indexed using the original pid
     uint16_t pi_newpids[MAX_PIDS];
@@ -211,6 +292,32 @@ typedef struct output_t
 
     struct udprawpkt raw_pkt_header;
 } output_t;
+
+LINK_OF(output, link);
+
+typedef struct output_list
+{
+    list_t list;
+} output_list_t;
+
+LIST_OF(output_list, list, output, link);
+#define output_list_each(L, I)  LIST_EACH(output_list_next, L, I)
+#define output_list_flush(L, I) LIST_FLUSH(output_list_pop, L, I)
+
+static inline const char *output_display_name( output_t *output )
+{
+    return output ? output->config.psz_displayname : "(none)";
+}
+
+void output_Log( int level, void *output, const char *format, va_list args );
+__attribute__ ((format(printf, 2, 3)))
+    void output_Info( void *output, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void output_Err( void *output, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void output_Warn( void *output, const char *psz_format, ... );
+__attribute__ ((format(printf, 2, 3)))
+    void output_Dbg( void *output, const char *psz_format, ... );
 
 typedef struct ts_pid_info {
     mtime_t  i_first_packet_ts;         /* Time of the first seen packet */
@@ -229,9 +336,8 @@ typedef struct ts_pid_info {
 extern struct ev_loop *event_loop;
 extern int i_syslog;
 extern int i_verbose;
-extern output_t **pp_outputs;
-extern int i_nb_outputs;
-extern output_t output_dup;
+extern output_list_t outputs;
+extern output_t *output_dup;
 extern bool b_passthrough;
 extern char *psz_srv_socket;
 extern int i_adapter;
@@ -300,8 +406,33 @@ extern void (*pf_UnsetFilter)( int i_fd, uint16_t i_pid );
  * Prototypes
  *****************************************************************************/
 
+#define DECLARE_CONFIG_GLOBAL(Type, Name)                               \
+void config_set_##Name( Type value );                                   \
+Type config_get_##Name( void );
+
+DECLARE_CONFIG_GLOBAL(const char *, conf_file);
+DECLARE_CONFIG_GLOBAL(bool, udp);
+DECLARE_CONFIG_GLOBAL(bool, dvb);
+DECLARE_CONFIG_GLOBAL(bool, epg);
+DECLARE_CONFIG_GLOBAL(mtime_t, latency);
+DECLARE_CONFIG_GLOBAL(mtime_t, retention);
+DECLARE_CONFIG_GLOBAL(int, ttl);
+DECLARE_CONFIG_GLOBAL(in_addr_t, ssrc);
+DECLARE_CONFIG_GLOBAL(uint16_t, network_id);
+DECLARE_CONFIG_GLOBAL(const char *, network_name);
+DECLARE_CONFIG_GLOBAL(const char *, provider_name);
+DECLARE_CONFIG_GLOBAL(const char *, dvb_charset);
+DECLARE_CONFIG_GLOBAL(bool, passthrough);
+
+void config_strdvb( dvb_string_t *dvb_string,
+                    const char *str, const char *charset );
 void config_Init( output_config_t *p_config );
+void config_Defaults( output_config_t *p_config );
+bool config_ParseHost( output_config_t *p_config, char *psz_string );
+void config_ReadFile( void );
+void config_Print( output_config_t *p_config );
 void config_Free( output_config_t *p_config );
+void config_Close( void );
 
 /* Connect/Disconnect from syslogd */
 void msg_Connect( const char *ident );
@@ -341,7 +472,6 @@ void hexDump( uint8_t *p_data, uint32_t i_len );
 struct addrinfo *ParseNodeService( char *_psz_string, char **ppsz_end,
                                    uint16_t i_default_port );
 char *config_stropt( const char *psz_string );
-void config_ReadFile(void);
 
 uint8_t *psi_pack_section( uint8_t *p_sections, unsigned int *pi_size );
 uint8_t *psi_pack_sections( uint8_t **pp_sections, unsigned int *pi_size );
@@ -375,7 +505,7 @@ void asi_deltacast_UnsetFilter( int i_fd, uint16_t i_pid );
 
 void demux_Open( void );
 void demux_Run( block_t *p_ts );
-void demux_Change( output_t *p_output, const output_config_t *p_config );
+void demux_Change( output_t *p_output, output_config_t *p_config );
 void demux_ResendCAPMTs( void );
 bool demux_PIDIsSelected( uint16_t i_pid );
 char *demux_Iconv(void *_unused, const char *psz_encoding,
@@ -391,15 +521,17 @@ uint8_t *demux_get_packed_EIT_pf( uint16_t service_id, unsigned int *pi_pack_siz
 uint8_t *demux_get_packed_EIT_schedule( uint16_t service_id, unsigned int *pi_pack_size );
 void demux_get_PID_info( uint16_t i_pid, uint8_t *p_data );
 void demux_get_PIDS_info( uint8_t *p_data );
+uint16_t demux_remap_pid( output_t *output, uint16_t pid );
+void demux_unlink_output( output_t *output );
 
 output_t *output_Create( const output_config_t *p_config );
-int output_Init( output_t *p_output, const output_config_t *p_config );
 void output_Close( output_t *p_output );
 void output_Put( output_t *p_output, block_t *p_block );
-output_t *output_Find( const output_config_t *p_config );
+output_t *output_Find( const output_list_t *list,
+                       const output_config_t *p_config );
 void output_Change( output_t *p_output, const output_config_t *p_config );
 void outputs_Init( void );
-void outputs_Close( int i_num_outputs );
+void outputs_Close( void );
 
 void comm_Open( void );
 void comm_Close( void );

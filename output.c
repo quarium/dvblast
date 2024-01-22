@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 #include <sys/socket.h>
@@ -45,6 +46,8 @@
  * Local declarations
  *****************************************************************************/
 #define MAX_PACKETS 100
+
+output_list_t outputs = { LIST_INIT(outputs.list) };
 
 static struct ev_timer output_watcher;
 static mtime_t i_next_send = INT64_MAX;
@@ -121,6 +124,21 @@ static void RawFillHeaders(struct udprawpkt *dgram,
 }
 
 /*****************************************************************************
+ * output_Log
+ *****************************************************************************/
+void output_Log(int level, void *priv, const char *format, va_list ap)
+{
+    output_t *output = priv;
+    char fmt[MAX_MSG];
+    snprintf( fmt, MAX_MSG, "%s: %s", output_display_name(output), format );
+    msg_Log( level, output, fmt, ap );
+}
+MSG_LOG( output, Dbg, VERB_DBG )
+MSG_LOG( output, Info, VERB_INFO )
+MSG_LOG( output, Err, VERB_ERR )
+MSG_LOG( output, Warn, VERB_WARN )
+
+/*****************************************************************************
  * output_BlockCount
  *****************************************************************************/
 static int output_BlockCount( output_t *p_output )
@@ -186,50 +204,9 @@ void output_PacketVacuum( output_t *p_output )
 }
 
 /*****************************************************************************
- * output_Create : create and insert the output_t structure
- *****************************************************************************/
-output_t *output_Create( const output_config_t *p_config )
-{
-    int i;
-    output_t *p_output = NULL;
-
-    for ( i = 0; i < i_nb_outputs; i++ )
-    {
-        if ( !( pp_outputs[i]->config.i_config & OUTPUT_VALID ) )
-        {
-            p_output = pp_outputs[i];
-            break;
-        }
-    }
-
-    if ( p_output == NULL )
-    {
-        p_output = malloc( sizeof(output_t) );
-        i_nb_outputs++;
-        pp_outputs = realloc( pp_outputs, i_nb_outputs * sizeof(output_t *) );
-        pp_outputs[i] = p_output;
-    }
-
-    if ( output_Init( p_output, p_config ) < 0 )
-        return NULL;
-
-    return p_output;
-}
-
-/* Init the mapped pids to unused */
-void init_pid_mapping( output_t *p_output )
-{
-    unsigned int i;
-    for ( i = 0; i < MAX_PIDS; i++ ) {
-        p_output->pi_newpids[i]  = UNUSED_PID;
-        p_output->pi_freepids[i] = UNUSED_PID;
-    }
-}
-
-/*****************************************************************************
  * output_Init : set up the output initial config
  *****************************************************************************/
-int output_Init( output_t *p_output, const output_config_t *p_config )
+static int output_Init( output_t *p_output, const output_config_t *p_config )
 {
     socklen_t i_sockaddr_len = (p_config->i_family == AF_INET) ?
                                sizeof(struct sockaddr_in) :
@@ -237,6 +214,8 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
 
     memset( p_output, 0, sizeof(output_t) );
     config_Init( &p_output->config );
+    output_init_link( p_output );
+    list_init( &p_output->sids.list );
 
     /* Init run-time values */
     p_output->p_packets = p_output->p_last_packet = NULL;
@@ -244,27 +223,25 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     p_output->i_packet_count = 0;
     p_output->i_seqnum = rand() & 0xffff;
     p_output->i_pat_cc = rand() & 0xf;
-    p_output->i_pmt_cc = rand() & 0xf;
     p_output->i_nit_cc = rand() & 0xf;
     p_output->i_sdt_cc = rand() & 0xf;
     p_output->i_eit_cc = rand() & 0xf;
     p_output->i_pat_version = rand() & 0xff;
-    p_output->i_pmt_version = rand() & 0xff;
     p_output->i_nit_version = rand() & 0xff;
     p_output->i_sdt_version = rand() & 0xff;
     p_output->p_pat_section = NULL;
-    p_output->p_pmt_section = NULL;
     p_output->p_nit_section = NULL;
     p_output->p_sdt_section = NULL;
     p_output->p_eit_ts_buffer = NULL;
     if ( b_random_tsid )
         p_output->i_tsid = rand() & 0xffff;
-    p_output->i_pcr_pid = 0;
 
     /* Init the mapped pids to unused */
     init_pid_mapping( p_output );
 
     /* Init socket-related fields */
+    p_output->config.psz_displayname = p_config->psz_displayname ?
+        strdup( p_config->psz_displayname ) : NULL;
     p_output->config.i_family = p_config->i_family;
     memcpy( &p_output->config.connect_addr, &p_config->connect_addr,
             sizeof(struct sockaddr_storage) );
@@ -280,8 +257,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     }
     if ( p_output->i_handle < 0 )
     {
-        Err( "couldn't create socket (%s)", strerror(errno) );
-        p_output->config.i_config &= ~OUTPUT_VALID;
+        output_Err( p_output, "couldn't create socket (%s)", strerror(errno) );
         return -errno;
     }
 
@@ -290,7 +266,7 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     {
         if ( bind( p_output->i_handle, (struct sockaddr *)&p_config->bind_addr,
                    i_sockaddr_len ) < 0 )
-            Warn( "couldn't bind socket (%s)", strerror(errno) );
+            output_Warn( p_output, "couldn't bind socket (%s)", strerror(errno) );
 
         if ( p_config->i_family == AF_INET )
         {
@@ -329,21 +305,46 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
     }
 
     if (ret == -1)
-        Warn( "couldn't join multicast address (%s)", strerror(errno) );
+        output_Warn( p_output, "couldn't join multicast address (%s)",
+                    strerror(errno) );
 
     if ( connect( p_output->i_handle,
                   (struct sockaddr *)&p_output->config.connect_addr,
                   i_sockaddr_len ) < 0 )
     {
-        Err( "couldn't connect socket (%s)", strerror(errno) );
+        output_Err( p_output, "couldn't connect socket (%s)", strerror(errno) );
         close( p_output->i_handle );
-        p_output->config.i_config &= ~OUTPUT_VALID;
         return -errno;
     }
 
-    p_output->config.i_config |= OUTPUT_VALID;
-
     return 0;
+}
+
+/*****************************************************************************
+ * output_Create : create and insert the output_t structure
+ *****************************************************************************/
+output_t *output_Create( const output_config_t *p_config )
+{
+    output_t *p_output = malloc( sizeof(output_t) );
+
+    if ( output_Init( p_output, p_config ) < 0 )
+    {
+        free( p_output );
+        return NULL;
+    }
+
+    output_Dbg( p_output, "added" );
+    return p_output;
+}
+
+/* Init the mapped pids to unused */
+void init_pid_mapping( output_t *p_output )
+{
+    unsigned int i;
+    for ( i = 0; i < MAX_PIDS; i++ ) {
+        p_output->pi_newpids[i]  = UNUSED_PID;
+        p_output->pi_freepids[i] = UNUSED_PID;
+    }
 }
 
 /*****************************************************************************
@@ -351,6 +352,8 @@ int output_Init( output_t *p_output, const output_config_t *p_config )
  *****************************************************************************/
 void output_Close( output_t *p_output )
 {
+    demux_unlink_output( p_output );
+
     packet_t *p_packet = p_output->p_packets;
     while ( p_packet != NULL )
     {
@@ -370,15 +373,16 @@ void output_Close( output_t *p_output )
 
     p_output->p_packets = p_output->p_last_packet = NULL;
     free( p_output->p_pat_section );
-    free( p_output->p_pmt_section );
     free( p_output->p_nit_section );
     free( p_output->p_sdt_section );
     free( p_output->p_eit_ts_buffer );
-    p_output->config.i_config &= ~OUTPUT_VALID;
 
     close( p_output->i_handle );
 
+    output_Dbg( p_output, "removed" );
+    output_del_link( p_output );
     config_Free( &p_output->config );
+    free( p_output );
 }
 
 /*****************************************************************************
@@ -410,7 +414,7 @@ static void output_Flush( output_t *p_output )
         /* New timestamp based only on local time when sent */
         /* 90 kHz clock = 90000 counts per second */
         rtp_set_timestamp( p_rtp_hdr, i_wallclock * 9 / 100);
-        rtp_set_ssrc( p_rtp_hdr, p_output->config.pi_ssrc );
+        rtp_set_ssrc( p_rtp_hdr, (const uint8_t *)&p_output->config.ssrc );
 
         i_iov++;
     }
@@ -422,17 +426,15 @@ static void output_Flush( output_t *p_output )
          * set the pid to the new pid
          * later we re-instate the old pid for the next output
          */
-        if ( b_do_remap || p_output->config.b_do_remap ) {
-            block_t *p_block = p_packet->pp_blocks[i_block];
-            uint16_t i_pid = ts_get_pid( p_block->p_ts );
-            p_block->tmp_pid = UNUSED_PID;
-            if ( p_output->pi_newpids[i_pid] != UNUSED_PID )
-            {
-                uint16_t i_newpid = p_output->pi_newpids[i_pid];
-                /* Need to map this pid to the new pid */
-                ts_set_pid( p_block->p_ts, i_newpid );
-                p_block->tmp_pid = i_pid;
-            }
+        block_t *p_block = p_packet->pp_blocks[i_block];
+        uint16_t i_pid = ts_get_pid( p_block->p_ts );
+        uint16_t i_newpid = demux_remap_pid( p_output, i_pid );
+        p_block->tmp_pid = UNUSED_PID;
+        if ( i_newpid != i_pid )
+        {
+            /* Need to map this pid to the new pid */
+            ts_set_pid( p_block->p_ts, i_newpid );
+            p_block->tmp_pid = i_pid;
         }
 
         p_iov[i_iov].iov_base = p_packet->pp_blocks[i_block]->p_ts;
@@ -458,10 +460,7 @@ static void output_Flush( output_t *p_output )
     }
 
     if ( writev( p_output->i_handle, p_iov, i_iov ) < 0 )
-    {
-        Err( "couldn't writev to %s (%s)",
-             p_output->config.psz_displayname, strerror(errno) );
-    }
+        output_Err( p_output, "couldn't writev (%s)", strerror(errno) );
     /* Update the wallclock because writev() can take some time. */
     i_wallclock = mdate();
 
@@ -536,37 +535,32 @@ static void outputs_Send(struct ev_loop *loop, struct ev_timer *w, int revents)
 
     do
     {
-        int i;
         i_next_send = INT64_MAX;
 
-        if ( output_dup.config.i_config & OUTPUT_VALID )
+        if ( output_dup )
         {
-            while ( output_dup.p_packets != NULL
-                     && output_dup.p_packets->i_dts
-                         + output_dup.config.i_output_latency <= i_wallclock )
-                output_Flush( &output_dup );
+            while ( output_dup->p_packets != NULL
+                     && output_dup->p_packets->i_dts
+                         + output_dup->config.i_output_latency <= i_wallclock )
+                output_Flush( output_dup );
 
-            if ( output_dup.p_packets != NULL )
-                i_next_send = output_dup.p_packets->i_dts
-                                + output_dup.config.i_output_latency;
+            if ( output_dup->p_packets != NULL )
+                i_next_send = output_dup->p_packets->i_dts
+                                + output_dup->config.i_output_latency;
         }
 
-        for ( i = 0; i < i_nb_outputs; i++ )
+        output_list_each( &outputs, output )
         {
-            output_t *p_output = pp_outputs[i];
-            if ( !( p_output->config.i_config & OUTPUT_VALID ) )
-                continue;
+            while ( output->p_packets != NULL
+                     && output->p_packets->i_dts
+                         + output->config.i_output_latency <= i_wallclock )
+                output_Flush( output );
 
-            while ( p_output->p_packets != NULL
-                     && p_output->p_packets->i_dts
-                         + p_output->config.i_output_latency <= i_wallclock )
-                output_Flush( p_output );
-
-            if ( p_output->p_packets != NULL
-                  && (p_output->p_packets->i_dts
-                       + p_output->config.i_output_latency < i_next_send) )
-                i_next_send = p_output->p_packets->i_dts
-                                  + p_output->config.i_output_latency;
+            if ( output->p_packets != NULL
+                  && (output->p_packets->i_dts
+                       + output->config.i_output_latency < i_next_send) )
+                i_next_send = output->p_packets->i_dts
+                                  + output->config.i_output_latency;
         }
     }
     while (i_next_send <= i_wallclock);
@@ -589,35 +583,31 @@ void outputs_Init( void )
 /*****************************************************************************
  * output_Find : find an existing output from a given output_config_t
  *****************************************************************************/
-output_t *output_Find( const output_config_t *p_config )
+output_t *output_Find( const output_list_t *list,
+                       const output_config_t *p_config )
 {
     socklen_t i_sockaddr_len = (p_config->i_family == AF_INET) ?
                                sizeof(struct sockaddr_in) :
                                sizeof(struct sockaddr_in6);
-    int i;
 
-    for ( i = 0; i < i_nb_outputs; i++ )
+    output_list_each( list, output )
     {
-        output_t *p_output = pp_outputs[i];
-
-        if ( !(p_output->config.i_config & OUTPUT_VALID) ) continue;
-
-        if ( p_config->i_family != p_output->config.i_family ||
-             memcmp( &p_config->connect_addr, &p_output->config.connect_addr,
+        if ( p_config->i_family != output->config.i_family ||
+             memcmp( &p_config->connect_addr, &output->config.connect_addr,
                      i_sockaddr_len ) ||
-             memcmp( &p_config->bind_addr, &p_output->config.bind_addr,
+             memcmp( &p_config->bind_addr, &output->config.bind_addr,
                      i_sockaddr_len ) )
             continue;
 
         if ( p_config->i_family == AF_INET6 &&
-             p_config->i_if_index_v6 != p_output->config.i_if_index_v6 )
+             p_config->i_if_index_v6 != output->config.i_if_index_v6 )
             continue;
 
-        if ( (p_config->i_config ^ p_output->config.i_config) & OUTPUT_RAW ) {
+        if ( (p_config->i_config ^ output->config.i_config) & OUTPUT_RAW ) {
             continue;
         }
 
-        return p_output;
+        return output;
     }
 
     return NULL;
@@ -629,7 +619,7 @@ output_t *output_Find( const output_config_t *p_config )
 void output_Change( output_t *p_output, const output_config_t *p_config )
 {
     int ret = 0;
-    memcpy( p_output->config.pi_ssrc, p_config->pi_ssrc, 4 * sizeof(uint8_t) );
+    memcpy( &p_output->config.ssrc, &p_config->ssrc, sizeof( p_config->ssrc ) );
     p_output->config.i_output_latency = p_config->i_output_latency;
     p_output->config.i_max_retention = p_config->i_max_retention;
 
@@ -668,7 +658,7 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
     }
 
     if (ret == -1)
-        Warn( "couldn't change socket (%s)", strerror(errno) );
+        output_Warn( p_output, "couldn't change socket (%s)", strerror(errno) );
 
     if ( p_output->config.i_mtu != p_config->i_mtu
           || ((p_output->config.i_config ^ p_config->i_config) & OUTPUT_UDP) )
@@ -699,25 +689,12 @@ void output_Change( output_t *p_output, const output_config_t *p_config )
 /*****************************************************************************
  * outputs_Close : Close all outputs and free allocated memory
  *****************************************************************************/
-void outputs_Close( int i_num_outputs )
+void outputs_Close( void )
 {
-    int i;
-
-    for ( i = 0; i < i_num_outputs; i++ )
+    output_list_flush( &outputs, output )
     {
-        output_t *p_output = pp_outputs[i];
-
-        if ( p_output->config.i_config & OUTPUT_VALID )
-        {
-            Dbg( "removing %s", p_output->config.psz_displayname );
-
-            if ( p_output->p_packets )
-                output_Flush( p_output );
-            output_Close( p_output );
-        }
-
-        free( p_output );
+        if ( output->p_packets )
+            output_Flush( output );
+        output_Close( output );
     }
-
-    free( pp_outputs );
 }

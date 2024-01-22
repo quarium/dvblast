@@ -30,7 +30,19 @@ endif
 
 LDLIBS_DVBLAST += -lpthread -lev
 
-OBJ_DVBLAST = dvblast.o util.o dvb.o udp.o asi.o demux.o output.o en50221.o comm.o mrtg-cnt.o asi-deltacast.o
+OBJ_DVBLAST = \
+	      dvblast.o \
+	      util.o \
+	      config.o \
+	      dvb.o \
+	      udp.o \
+	      asi.o \
+	      demux.o \
+	      output.o \
+	      en50221.o \
+	      comm.o \
+	      mrtg-cnt.o \
+	      asi-deltacast.o
 OBJ_DVBLASTCTL = util.o dvblastctl.o
 
 ifndef V
@@ -49,7 +61,7 @@ all: dvblast dvblastctl
 
 .PHONY: clean install uninstall dist
 
-%.o: %.c Makefile config.h dvblast.h en50221.h comm.h asi.h mrtg-cnt.h asi-deltacast.h
+%.o: %.c Makefile config.h dvblast.h list.h en50221.h comm.h asi.h mrtg-cnt.h asi-deltacast.h
 	@echo "CC      $<"
 	$(Q)$(CROSS)$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
 

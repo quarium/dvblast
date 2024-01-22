@@ -470,7 +470,7 @@ static void udp_MuteCb(struct ev_loop *loop, struct ev_timer *w, int revents)
  *****************************************************************************/
 int udp_SetFilter( uint16_t i_pid )
 {
-    return -1;
+    return 0;
 }
 
 /*****************************************************************************
@@ -486,4 +486,3 @@ void udp_UnsetFilter( int i_fd, uint16_t i_pid )
 void udp_Reset( void )
 {
 }
-

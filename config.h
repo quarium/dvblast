@@ -51,6 +51,9 @@
 #define DEFAULT_FRONTEND_TIMEOUT 30000000 /* 30 s */
 #define EXIT_STATUS_FRONTEND_TIMEOUT 100
 #define DEFAULT_UDP_LOCK_TIMEOUT 5000000 /* 5 s */
+#define DEFAULT_NETWORK_NAME "DVBlast - videolan.org"
+#define DEFAULT_DVB_CHARSET "UTF-8//IGNORE"
+#define DEFAULT_NETWORK_ID 0xffff
 
 // Compatability defines
 #if defined(__APPLE__)
